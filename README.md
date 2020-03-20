@@ -16,7 +16,7 @@ of the build process.  It is an attempt to have a straightforward build tool tha
 not over-engineered.  The KISS rule reigns here.
 
 Tasks themselves also support the notion of prerequisite tasks.  For example,
-`test` type tasks usually require a `compile` type task to be performed firs.  Each
+`test` type tasks usually require a `compile` type task to be performed first.  Each
 language is responsible for providing this information for the tasks it publishes.
 The user has the ability to bypass this prerequisite task processing, if necessary. 
 
