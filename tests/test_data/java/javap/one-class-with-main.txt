@@ -1,0 +1,10 @@
+Compiled from "UIUtils.java"
+public class com.example.ui.UIUtils {
+  public static void resizeColumns(javax.swing.JTable);
+  public static javax.swing.JButton createTBButton(java.lang.String, java.lang.String);
+  public static javax.swing.JButton createSmallButton(java.lang.String, java.lang.String);
+  public static java.awt.Component stripe(java.awt.Component, int, boolean);
+  public static java.awt.Color getStripe(int);
+  public static void main(java.lang.String[]);
+  static {};
+}

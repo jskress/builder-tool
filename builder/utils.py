@@ -12,6 +12,8 @@ import click
 
 PathSequence = Union[Sequence[Path], Sequence[str]]
 T = TypeVar("T")
+SubprocessRunner = Callable[[Sequence[str], bool, Path], subprocess.CompletedProcess]
+_run_subprocess = subprocess.run
 
 
 class GlobalOptions(object):
@@ -63,7 +65,7 @@ class GlobalOptions(object):
     def quiet(self):
         return self._quiet
 
-    def verbose(self):
+    def verbose(self) -> int:
         return self._verbose
 
     def independent_tasks(self):
@@ -134,22 +136,22 @@ def find(sequence: Iterable[T], predicate: Callable) -> Optional[T]:
     return None
 
 
-def get_matching_files(directory: Path, pattern: str, path_like: bool = False) -> PathSequence:
+def get_matching_files(directory: Path, pattern: str, to_str: bool = False) -> PathSequence:
     """
-    This is a helper function that returns a list of file names underneath the given
-    directory that match the specified glob pattern.  The names returned are relative
-    to the given directory.  The file names are returned as strings.
+    This is a helper function that returns a list of file paths underneath the given
+    directory that match the specified glob pattern.  The paths returned are relative
+    to the given directory.  Optionally, they may be returned as a list of strings.
 
     :param directory: the root of the file tree to search.
     :param pattern: the glob pattern to match.
-    :param path_like: if True, will not convert the resulting file names to strings.
+    :param to_str: if True, will convert the resulting file paths to strings.
     :return: the list of matching files.
     """
     file_names = []
 
     for path in directory.glob(pattern):
         file_name = path.relative_to(directory)
-        if not path_like:
+        if to_str:
             file_name = str(file_name)
         file_names.append(file_name)
 
@@ -210,7 +212,8 @@ def end(*args, label: str = 'ERROR', rc=1):
     sys.exit(rc)
 
 
-def checked_run(args, action: str, capture=False, cwd=None, allowed_rcs=None) -> subprocess.CompletedProcess:
+def checked_run(args: Sequence[str], action: str, capture: bool = False, cwd=None, allowed_rcs=None)\
+        -> subprocess.CompletedProcess:
     """
     This function invokes the specified command line as a subprocess.  If the
     subprocess fails (i.e., returns with a non-zero return code), execution is
@@ -229,13 +232,18 @@ def checked_run(args, action: str, capture=False, cwd=None, allowed_rcs=None) ->
         allowed_rcs = []
 
     verbose_out(f'Running: {" ".join(args)}')
-    completed_process = subprocess.run(args, capture_output=capture, cwd=cwd)
+    completed_process = _run_subprocess(args, capture_output=capture, cwd=cwd)
     rc = completed_process.returncode
 
     if len(allowed_rcs) > 0 and rc != 0 and rc not in allowed_rcs:
         end(f'{action} failed with return code {rc}.', f'Command: {" ".join(args)}', rc=rc)
 
     return completed_process
+
+
+def set_subprocess_runner(runner: Optional[SubprocessRunner] = None):
+    global _run_subprocess
+    _run_subprocess = subprocess.run if runner is None else runner
 
 
 global_options = GlobalOptions()

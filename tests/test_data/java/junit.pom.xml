@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>junit</groupId>
+    <artifactId>junit</artifactId>
+    <version>4.13</version>
+
+    <name>JUnit</name>
+    <description>JUnit is a unit testing framework for Java, created by Erich Gamma and Kent Beck.</description>
+    <url>http://junit.org</url>
+    <inceptionYear>2002</inceptionYear>
+    <organization>
+        <name>JUnit</name>
+        <url>http://www.junit.org</url>
+    </organization>
+    <licenses>
+        <license>
+            <name>Eclipse Public License 1.0</name>
+            <url>http://www.eclipse.org/legal/epl-v10.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <properties>
+        <jdkVersion>1.5</jdkVersion>
+        <surefireVersion>2.19.1</surefireVersion>
+        <hamcrestVersion>1.3</hamcrestVersion>
+        <project.build.sourceEncoding>ISO-8859-1</project.build.sourceEncoding>
+        <arguments/>
+        <gpg.keyname>67893CC4</gpg.keyname>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-core</artifactId>
+            <version>${hamcrestVersion}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-library</artifactId>
+            <version>${hamcrestVersion}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

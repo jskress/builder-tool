@@ -10,7 +10,16 @@ _signatures = ['sha1', 'md5']
 
 
 # noinspection PyUnusedLocal
-def maven_resolver(dependency: Dependency, config) -> Union[RemoteFile, LocalFile]:
+def maven_resolver(dependency: Dependency, maven_config) -> Union[RemoteFile, LocalFile]:
+    """
+    A function to convert a Maven dependency into a remote file reference for the
+    builder framework to resolve and cache.
+
+    :param dependency: the dependency to convert.
+    :param maven_config: the configuration information for Maven; this is ignored
+    as we have no configuration we respond to.
+    :return: the given dependency as a remote file.
+    """
     group = dependency.group()
     name = dependency.name()
     version = dependency.version()

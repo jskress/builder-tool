@@ -1,20 +1,28 @@
 """
-This file provides all the support we need around the jar tool and packaging stuff.
+This file provides all the support we need around the `jar` tool and packaging stuff.
 """
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple, List
 
 from builder import VERSION
-from builder.java.java import _add_verbose_options, java_version, JavaConfiguration, _describe_classes
+from builder.java.describe import describe_classes
+from builder.java.java import _add_verbose_options, java_version, JavaConfiguration
 from builder.project import Project
 from builder.signing import sign_path
-from builder.utils import checked_run, TempTextFile, get_matching_files
+from builder.utils import checked_run, TempTextFile
 
 _class_name_pattern = re.compile(r'^public.*? class ([.\w]+) ')
 
 
 def _build_jar_options(jar_path: Path, entry_point: Optional[str]) -> List[str]:
+    """
+    Build a list of the command line options we need to send to the `jar` tool.
+
+    :param jar_path: the path representing the jar file that is to be created.
+    :param entry_point: the entry point, if the jar is to be executable.
+    :return: the list of basic options for the `jar` command.
+    """
     options = ['--create', '--file', str(jar_path)]
 
     if entry_point:
@@ -22,84 +30,61 @@ def _build_jar_options(jar_path: Path, entry_point: Optional[str]) -> List[str]:
         options.append(entry_point)
 
     # noinspection SpellCheckingInspection
-    _add_verbose_options(options, '-Xdiags:verbose')
+    _add_verbose_options(options)
 
     return options
 
 
 def _include_directory(options: List[str], directory: Path):
+    """
+    A helper function for adding a directory inclusion into the set of options
+    for the `jar` tool.
+
+    :param options: the list of `jar` tool options to add to.
+    :param directory: the directory to include.
+    """
     options.append('-C')
     options.append(str(directory))
     options.append('.')
 
 
 def _get_packaging_dirs(language_config: JavaConfiguration) -> Tuple[Path, Path, Path, Path]:
+    """
+    A helper method that gets all our project-sensitive directories from the given
+    configuration.  The compiled classes directory must already exist.
+
+    :param language_config: the Java language configuration get the directories from.
+    :return: a tuple containing the Java source code directory, the compiled classes
+    directory, the source resources directory and the distribution directory.
+    """
     code_dir = language_config.code_dir()
     classes_dir = language_config.classes_dir(required=True)
     resources_dir = language_config.resources_dir()
 
     if language_config.type == 'library':
-        output_dir = language_config.library_dist_dir(ensure=True)
+        distribution_dir = language_config.library_dist_dir(ensure=True)
     else:  # language_config.type == 'application':
-        output_dir = language_config.application_dist_dir(ensure=True)
+        distribution_dir = language_config.application_dist_dir(ensure=True)
 
-    return code_dir, classes_dir, resources_dir, output_dir
-
-
-def _group_class_file_names(paths: Sequence[Path]):
-    sets = []
-    start = 0
-    length = 0
-
-    for index, path in enumerate(paths):
-        path_length = len(str(path)) + 1
-        if length + path_length > 3900:
-            sets.append(paths[start:index])
-            start = index
-            length = 0
-        else:
-            length = length + path_length
-
-    sets.append(paths[start:])
-
-    return sets
-
-
-def _split_class_info_output(lines: Sequence[str]) -> Sequence[Sequence[str]]:
-    line_sets = []
-    start = 1
-
-    for index, line in enumerate(lines):
-        if line.startswith('Compiled from '):
-            if start < index:
-                line_sets.append(lines[start:index])
-            start = index + 1
-
-    return line_sets
-
-
-def _get_entry_point_from(lines: Sequence[str]) -> Optional[str]:
-    match = _class_name_pattern.match(lines[0])
-
-    if match:
-        for line in lines[1:-1]:
-            if line.strip() == 'public static void main(java.lang.String[]);':
-                return match.group(1)
-
-    return None
+    return code_dir, classes_dir, resources_dir, distribution_dir
 
 
 def _find_entry_point(classes_dir: Path, specified_entry_point: Optional[str]) -> str:
-    class_files = get_matching_files(classes_dir, '**/*.class', path_like=True)
-    class_file_sets = _group_class_file_names(class_files)
+    """
+    A function that scans the directory tree rotted at the given directory for
+    compiled Java class files that contain the typical Java entry point method.
+    An entry point will always be returned; if one cannot be, an exception is
+    raised.  If an entry point is specified, it is validated as real.
+
+    :param classes_dir: the directory of compiled classes to scan.
+    :param specified_entry_point: an entry point specified by the user.
+    :return: the entry point, validated or discovered.
+    """
     entry_points = []
 
-    for class_file_set in class_file_sets:
-        output = _describe_classes(classes_dir, *class_file_set)
-        for class_info in _split_class_info_output(output):
-            entry_point = _get_entry_point_from(class_info)
-            if entry_point:
-                entry_points.append(entry_point)
+    for java_class in describe_classes(classes_dir):
+        if java_class.is_entry_point():
+            entry_points.append(java_class.name())
 
     if specified_entry_point:
         if specified_entry_point in entry_points:
@@ -116,20 +101,43 @@ def _find_entry_point(classes_dir: Path, specified_entry_point: Optional[str]) -
 
 
 def _create_manifest(info: Dict[str, Any], description: str) -> Sequence[str]:
+    """
+    A function that creates a basic manifest for a jar file based on information
+    from a project.
+
+    :param info: the `info` dictionary from a project.
+    :param description: the description from a project.
+    :return: a sequence of lines that represent the generated manifest.
+    """
     version = info['version']
     result = [
         'Manifest-Version: 1.0',
         f'Created-By: {java_version} (Builder, v{VERSION})',
         f'Specification-Title: {description}',
-        f'Specification-Version: {version}'
+        f'Specification-Version: {version}',
         f'Implementation-Title: {description}',
         f'Implementation-Version: {version}'
     ]
     return result
 
 
-def _run_packager(manifest: Sequence[str], entry_point: Optional[str], jar_file: Path, source: Path, resources: Path,
-                  sign_with: Optional[str]):
+def _run_packager(manifest: Sequence[str], entry_point: Optional[str], jar_file: Path, source: Path,
+                  resources: Optional[Path], sign_with: Optional[str]):
+    """
+    A function that executes the `jar` tool with appropriate parameters.  Support is
+    provided for generating a signature for the generated jar file if a signature
+    algorithm name is provided.
+
+    :param manifest: the basic manifest to include in the generated jar file.
+    :param entry_point: an optional entry point specified by the user.
+    :param jar_file: the path to the jar file to create.
+    :param source: the root directory of a sub-tree of files to include in the jar file.
+    :param resources: the root directory of a sub-tree of resource files to include in
+    the jar file.  This is optional.
+    :param sign_with: an option signature name.  If this is specified, a digital
+    signature file will be generated for the jar file we create.  Typical values are
+    `sha1` or `md5`.
+    """
     options = _build_jar_options(jar_file, entry_point)
     temp_file = TempTextFile()
     try:
@@ -140,7 +148,7 @@ def _run_packager(manifest: Sequence[str], entry_point: Optional[str], jar_file:
 
         _include_directory(options, source)
 
-        if resources.is_dir():
+        if resources and resources.is_dir():
             _include_directory(options, resources)
 
         checked_run(options, 'Packing')
@@ -152,6 +160,15 @@ def _run_packager(manifest: Sequence[str], entry_point: Optional[str], jar_file:
 
 
 def java_package(project: Project, language_config: JavaConfiguration):
+    """
+    A function that will package a collection of compiled classes, and any resource
+    files into a jar file with an appropriate manifest.  A jar file of sources may
+    also be produced if the configuration so indicates.  The jar files generated may
+    optionally be signed as well.
+
+    :param project: the current project information.
+    :param language_config: the current Java language configuration information.
+    """
     code_dir, classes_dir, resources_dir, output_dir = _get_packaging_dirs(language_config)
     entry_point = None if language_config.type != 'application' else \
         _find_entry_point(classes_dir, language_config.entry_point())

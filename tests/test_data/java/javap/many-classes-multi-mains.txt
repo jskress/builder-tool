@@ -1,0 +1,38 @@
+Compiled from "UIUtils.java"
+public class com.example.ui.UIUtils {
+  public static void resizeColumns(javax.swing.JTable);
+  public static javax.swing.JButton createTBButton(java.lang.String, java.lang.String);
+  public static javax.swing.JButton createSmallButton(java.lang.String, java.lang.String);
+  public static java.awt.Component stripe(java.awt.Component, int, boolean);
+  public static java.awt.Color getStripe(int);
+  public static void main(java.lang.String[]);
+  static {};
+}
+Compiled from "App.java"
+public final class com.example.App implements java.lang.Runnable {
+  public static void main(java.lang.String[]);
+  public void run();
+  static void access$000();
+}
+Compiled from "Frame.java"
+public final class com.example.Frame extends javax.swing.JFrame {
+  static final java.lang.String TITLE;
+  public static com.example.Frame getInstance();
+  public static void setIndeterminateStatus(java.lang.String);
+  public static void setProgressMax(int);
+  public static void setProgressValue(int);
+  public static void clearStatus();
+  com.example.Frame();
+  public void dispose();
+  static com.example.Panel access$000(com.example.Frame);
+  static {};
+}
+Compiled from "Worker.java"
+public interface com.example.ui.Worker {
+  public static void resizeColumns(javax.swing.JTable);
+  public static javax.swing.JButton createTBButton(java.lang.String, java.lang.String);
+  public static javax.swing.JButton createSmallButton(java.lang.String, java.lang.String);
+  public static java.awt.Component stripe(java.awt.Component, int, boolean);
+  public static java.awt.Color getStripe(int);
+  static {};
+}
