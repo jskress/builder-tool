@@ -2,7 +2,7 @@
 This library provides an object that represents a project.
 """
 from pathlib import Path
-from typing import Sequence, Optional, Dict, Union, Any
+from typing import Sequence, Optional, Dict, Union, Any, List, MutableMapping
 
 import yaml
 
@@ -39,7 +39,8 @@ _schema = ObjectSchema() \
                 )
                 .required('repo', 'version', 'scope')
                 .additional_properties(False)
-            )
+            ),
+        vars=ObjectSchema().additional_properties(StringSchema().min_length(1))
     )\
     .required('info')
 project_file_schema = SchemaValidator(schema=_schema)
@@ -61,12 +62,12 @@ class Project(object):
             'info': {}
         })
 
-    def __init__(self, directory, content):
+    def __init__(self, directory, content: Dict[str, Any]):
         self._directory = directory
         self._module_set = None
         self._unknown_languages = None
-        self.content = content
-        self.info = self.content['info']
+        self._content = content
+        self.info = self._content['info']
         if 'name' not in self.info:
             self.info['name'] = directory.name
         if 'version' not in self.info:
@@ -76,8 +77,36 @@ class Project(object):
         self._dependencies = DependencySet(content['dependencies'] if 'dependencies' in content else {})
         self._config_cache = {}
 
+        if 'vars' not in self._content:
+            self._content['vars'] = {}
+
         # Make us globally known.
         global_options.set_project(self)
+
+        # Finally, resolve any variable references.
+        self._resolve_vars_in_dict(self._content)
+
+    @staticmethod
+    def _resolve_vars_in_dict(data: Dict[str, Any]):
+        for key, value in data.items():
+            Project._resolve_vars_in_container(data, key, value)
+
+    @staticmethod
+    def _resolve_vars_in_list(data: MutableMapping):
+        for index, value in enumerate(data):
+            Project._resolve_vars_in_container(data, index, value)
+
+    @staticmethod
+    def _resolve_vars_in_container(data: MutableMapping, index: Any, value: Any):
+        if isinstance(value, tuple) and not isinstance(value, list):
+            data[index] = value = list(value)
+        if isinstance(value, str):
+            data[index] = global_options.substitute(value)
+        elif isinstance(value, Dict):
+            Project._resolve_vars_in_dict(value)
+        elif isinstance(value, List):
+            # noinspection PyTypeChecker
+            Project._resolve_vars_in_list(value)
 
     def _prefetch_module_set(self):
         languages = self.info['languages']
@@ -113,7 +142,7 @@ class Project(object):
 
     def get_config(self, name, schema: SchemaValidator = None, config_class: Optional[str] = None) -> Any:
         if name not in self._config_cache:
-            config = self.content[name] if name in self.content else {}
+            config = self._content[name] if name in self._content else {}
             if schema is not None:
                 if not schema.validate(config, name):
                     raise ValueError(f'Configuration for "{name}" is not valid: {schema.error}')
@@ -129,6 +158,9 @@ class Project(object):
         if ensure and not directory.is_dir():
             directory.mkdir(parents=True, exist_ok=True)
         return directory
+
+    def get_var_value(self, name: str) -> Optional[str]:
+        return self._content['vars'].get(name, None)
 
     @staticmethod
     def _create_config_object(config_class, config_data):

@@ -2,11 +2,12 @@
 This library provides a number of low-level utilities.
 """
 import os
+import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Callable, Iterable, Sequence, Union, Optional, TypeVar, Tuple
+from typing import Callable, Iterable, Sequence, Union, Optional, TypeVar, Tuple, Dict, Match
 
 import click
 
@@ -14,6 +15,7 @@ PathSequence = Union[Sequence[Path], Sequence[str]]
 T = TypeVar("T")
 SubprocessRunner = Callable[[Sequence[str], bool, Path], subprocess.CompletedProcess]
 _run_subprocess = subprocess.run
+_var_pattern = re.compile(r'[$]{(.*?)[}]')
 
 
 class GlobalOptions(object):
@@ -78,7 +80,22 @@ class GlobalOptions(object):
         return self._languages
 
     def var(self, name: str) -> Optional[str]:
-        return self._vars[name] if name in self._vars else None
+        if name in self._vars:
+            return self._vars[name]
+        value = self._project.get_var_value(name) if self._project else None
+        return value or os.environ.get(name)
+
+    def substitute(self, text: str, extras: Optional[Dict[str, str]] = None, ignore_global_vars: bool = False):
+        def do_substitution(match: Match[str]) -> str:
+            name = match.group(1)
+            if extras and name in extras:
+                return extras[name]
+            value = None
+            if not ignore_global_vars:
+                value = self.var(name)
+            return value or ''
+
+        return _var_pattern.sub(do_substitution, text)
 
     def tasks(self):
         return self._tasks

@@ -3,10 +3,11 @@ This file provides all our POM file handling.
 """
 import re
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Match
+from typing import Dict, Optional, Sequence
 
 from builder.dependencies import Dependency
 from builder.java.xml_support import parse_xml_file, XmlElement
+from builder.utils import global_options
 
 _var_pattern = re.compile(r'[$]{(.*?)[}]')
 
@@ -38,13 +39,9 @@ def _resolve_property(element: Optional[XmlElement], props: Dict[str, str]) -> O
     :return: the text of the given element, with any property references resolved or
     `None` if no element was provided.
     """
-    def substitute(match: Match[str]) -> str:
-        name = match.group(1)
-        return props[name] if name in props else ''
-
     text = None if element is None else element.text()
     if text:
-        text = _var_pattern.sub(substitute, text)
+        text = global_options.substitute(text, extras=props, ignore_global_vars=True)
     return text
 
 

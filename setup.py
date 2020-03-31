@@ -6,21 +6,23 @@ with open('README.md') as fd:
 
 # noinspection SpellCheckingInspection
 setup(
-    name='builder',
+    name='builder-tool',
     version=VERSION,
     description='Software Builder Tool',
     long_description=read_me,
-    url='https://github.com/jskress/builder',
+    long_description_content_type='text/markdown',
+    url='https://github.com/jskress/builder-tool',
     project_urls={
-        "Documentation": "https://github.com/jskress/builder/README.md",
-        "Code": "https://github.com/jskress/builder",
-        "Issue tracker": "https://github.com/jskress/builder/issues",
+        "Documentation": "https://github.com/jskress/builder-tool/README.md",
+        "Code": "https://github.com/jskress/builder-tool",
+        "Issue tracker": "https://github.com/jskress/builder-tool/issues",
     },
     author='Stephen Kress',
     author_email='jskress@gmail.com',
+    license='Apache 2.0',
     packages=find_packages(),
     include_package_data=True,
-    package_data={'': ['version.txt']},
+    package_data={'': ['LICENSE.md', 'version.txt']},
     install_requires=[
         'click', 'requests', 'PyYAML', 'stringcase'
     ],
