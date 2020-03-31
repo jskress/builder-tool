@@ -13,7 +13,7 @@ setup(
     long_description_content_type='text/markdown',
     url='https://github.com/jskress/builder-tool',
     project_urls={
-        "Documentation": "https://github.com/jskress/builder-tool/README.md",
+        "Documentation": "https://builder-tool.readthedocs.io/",
         "Code": "https://github.com/jskress/builder-tool",
         "Issue tracker": "https://github.com/jskress/builder-tool/issues",
     },

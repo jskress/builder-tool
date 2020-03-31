@@ -7,7 +7,7 @@ Here, we cover the installation of the builder tool.  The first step to using an
 software package is getting it properly installed.
 
 You may want to do the install in a virtual environment.  See the
-`setup.py <https://github.com/jskress/builder/blob/master/setup.py>`_
+`setup.py <https://github.com/jskress/builder-tool/blob/master/setup.py#L26-L28>`_
 file for which other packages are required (there aren't many and mostly what you'd
 expect).
 
