@@ -20,6 +20,7 @@ import os
 project = 'Builder Tool'
 copyright = '2020, Stephen Kress'
 author = 'Stephen Kress'
+master_doc = 'index'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
