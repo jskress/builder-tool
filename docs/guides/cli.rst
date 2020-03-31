@@ -14,7 +14,7 @@ project and a note about no tasks being given.  It will then show you the set
 of known languages and the tasks each one makes available.  Something like
 this:
 
-.. code-block::
+.. code-block:: bash
 
    --> builder
    Project: my-cool-project -- A project to save the world!
@@ -64,13 +64,13 @@ a few of them that require a bit more information.
     option can be a simple ``name=value`` expression or a comma-delimited list of
     them as in:
 
-    .. code-block::
+    .. code-block:: bash
 
        --set key1=value1,key2=value2
 
     The option may also be repeated like so:
 
-    .. code-block::
+    .. code-block:: bash
 
        --set key1=value1 --set key2=value2
 

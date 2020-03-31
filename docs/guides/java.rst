@@ -12,7 +12,7 @@ Project Directory Structure
 
 The default directory structure for a Java project is simple and looks like this:
 
-.. code-block::
+.. code-block:: bash
 
    ├── project.yaml
    └── src
