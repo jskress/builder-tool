@@ -3,11 +3,11 @@ This file provides all the support we need around the `jar` tool and packaging s
 """
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple, List
+from typing import Optional, Sequence, Tuple, List
 
 from builder import VERSION
 from builder.java.describe import describe_classes
-from builder.java.java import _add_verbose_options, java_version, JavaConfiguration
+from builder.java.java import _add_verbose_options, java_version, JavaConfiguration, PackageConfiguration
 from builder.project import Project
 from builder.signing import sign_path
 from builder.utils import checked_run, TempTextFile
@@ -17,11 +17,11 @@ _class_name_pattern = re.compile(r'^public.*? class ([.\w]+) ')
 
 def _build_jar_options(jar_path: Path, entry_point: Optional[str]) -> List[str]:
     """
-    Build a list of the command line options we need to send to the `jar` tool.
+    Build a list of the command line options we need to send to the ``jar`` tool.
 
     :param jar_path: the path representing the jar file that is to be created.
     :param entry_point: the entry point, if the jar is to be executable.
-    :return: the list of basic options for the `jar` command.
+    :return: the list of basic options for the ``jar`` command.
     """
     options = ['--create', '--file', str(jar_path)]
 
@@ -38,9 +38,9 @@ def _build_jar_options(jar_path: Path, entry_point: Optional[str]) -> List[str]:
 def _include_directory(options: List[str], directory: Path):
     """
     A helper function for adding a directory inclusion into the set of options
-    for the `jar` tool.
+    for the ``jar`` tool.
 
-    :param options: the list of `jar` tool options to add to.
+    :param options: the list of ``jar`` tool options to add to.
     :param directory: the directory to include.
     """
     options.append('-C')
@@ -100,16 +100,15 @@ def _find_entry_point(classes_dir: Path, specified_entry_point: Optional[str]) -
     return entry_points[0]
 
 
-def _create_manifest(info: Dict[str, Any], description: str) -> Sequence[str]:
+def _create_manifest(version: str, description: str) -> Sequence[str]:
     """
     A function that creates a basic manifest for a jar file based on information
     from a project.
 
-    :param info: the `info` dictionary from a project.
+    :param version: the version from a project.
     :param description: the description from a project.
     :return: a sequence of lines that represent the generated manifest.
     """
-    version = info['version']
     result = [
         'Manifest-Version: 1.0',
         f'Created-By: {java_version} (Builder, v{VERSION})',
@@ -124,7 +123,7 @@ def _create_manifest(info: Dict[str, Any], description: str) -> Sequence[str]:
 def _run_packager(manifest: Sequence[str], entry_point: Optional[str], jar_file: Path, source: Path,
                   resources: Optional[Path], sign_with: Optional[str]):
     """
-    A function that executes the `jar` tool with appropriate parameters.  Support is
+    A function that executes the ``jar`` tool with appropriate parameters.  Support is
     provided for generating a signature for the generated jar file if a signature
     algorithm name is provided.
 
@@ -135,16 +134,16 @@ def _run_packager(manifest: Sequence[str], entry_point: Optional[str], jar_file:
     :param resources: the root directory of a sub-tree of resource files to include in
     the jar file.  This is optional.
     :param sign_with: an option signature name.  If this is specified, a digital
-    signature file will be generated for the jar file we create.  Typical values are
-    `sha1` or `md5`.
+    signature file will be generated for the jar file we create.  A typical value might
+    be ``sha256``.
     """
     options = _build_jar_options(jar_file, entry_point)
-    temp_file = TempTextFile()
-    try:
+
+    with TempTextFile() as temp_file:
         temp_file.write_lines(manifest)
         options.insert(0, 'jar')
         options.append('--manifest')
-        options.append(temp_file.file_name)
+        options.append(str(temp_file.file_name))
 
         _include_directory(options, source)
 
@@ -152,14 +151,12 @@ def _run_packager(manifest: Sequence[str], entry_point: Optional[str], jar_file:
             _include_directory(options, resources)
 
         checked_run(options, 'Packing')
-    finally:
-        temp_file.remove()
 
     if sign_with:
         sign_path(sign_with, jar_file, save_to_file=True)
 
 
-def java_package(project: Project, language_config: JavaConfiguration):
+def java_package(project: Project, language_config: JavaConfiguration, task_config: PackageConfiguration):
     """
     A function that will package a collection of compiled classes, and any resource
     files into a jar file with an appropriate manifest.  A jar file of sources may
@@ -168,20 +165,21 @@ def java_package(project: Project, language_config: JavaConfiguration):
 
     :param project: the current project information.
     :param language_config: the current Java language configuration information.
+    :param task_config: the current ``package`` task configuration information.
     """
     code_dir, classes_dir, resources_dir, output_dir = _get_packaging_dirs(language_config)
     entry_point = None if language_config.type != 'application' else \
-        _find_entry_point(classes_dir, language_config.entry_point())
-    sign_with = language_config.sign_packages_with()
-    manifest = _create_manifest(project.info, project.description())
-    jar_file = output_dir / f'{project.info["name"]}-{project.info["version"]}.jar'
+        _find_entry_point(classes_dir, task_config.get_entry_point())
+    sign_with = task_config.sign_packages_with()
+    manifest = _create_manifest(project.version, project.description)
+    jar_file = output_dir / f'{project.name}-{project.version}.jar'
 
     _run_packager(manifest, entry_point, jar_file, classes_dir, resources_dir, sign_with)
 
-    if language_config.package_sources():
+    if task_config.package_sources(language_config):
         if not code_dir.is_dir():
             raise ValueError(f'Cannot build a sources archive since {code_dir} does not exist.')
 
-        jar_file = output_dir / f'{project.info["name"]}-{project.info["version"]}-sources.jar'
+        jar_file = output_dir / f'{project.name}-{project.version}-sources.jar'
 
         _run_packager(manifest, entry_point, jar_file, code_dir, resources_dir, sign_with)

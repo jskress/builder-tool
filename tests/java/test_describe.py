@@ -6,7 +6,7 @@ from pathlib import Path
 # noinspection PyProtectedMember
 from builder.java.describe import JavaClass, _group_class_file_names, _parse_class_info_output, _run_describer, \
     describe_classes
-from tests.test_utils import get_test_path, FakeProcessContext, FakeProcess, Options
+from tests.test_support import get_test_path, FakeProcessContext, FakeProcess, Options
 
 
 class TestJavaClassObject(object):

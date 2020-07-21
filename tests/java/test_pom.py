@@ -5,7 +5,7 @@ from builder.dependencies import Dependency
 # noinspection PyProtectedMember
 from builder.java.pom import _get_pom_properties, _resolve_property, pom_to_dependencies
 from builder.java.xml_support import parse_xml_file, parse_xml_string
-from tests.test_utils import get_test_path
+from tests.test_support import get_test_path
 
 _substitute_test_doc = """<?xml version="1.0" encoding="UTF-8"?>
 <root>
@@ -91,8 +91,8 @@ class TestPOMToDependencies(object):
 
         # Make sure parent dependency info is properly propagated.
         for dependency in dependencies:
-            assert dependency.repo() == 'repo'
-            assert dependency.scope() == ['compile']
+            assert dependency.repo == 'repo'
+            assert dependency.scope == ['compile']
 
         dependencies = [repr(dependency) for dependency in dependencies]
 

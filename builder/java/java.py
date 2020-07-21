@@ -21,7 +21,6 @@ class JavaConfiguration(object):
         self.dist = 'dist'
         self.app_target = 'app'
         self.lib_target = 'lib'
-        self.packaging = {}
 
         self._project = global_options.project()
         self._code_dir = None
@@ -190,7 +189,14 @@ class JavaConfiguration(object):
             )
         return self._app_dir
 
-    def entry_point(self) -> Optional[str]:
+
+class PackageConfiguration(object):
+    def __init__(self):
+        self.entry_point = None
+        self.sources = None
+        self.sign_with = None
+
+    def get_entry_point(self) -> Optional[str]:
         """
         A function that returns the entry point (class name) from the project
         file, if one was specified.
@@ -198,42 +204,40 @@ class JavaConfiguration(object):
         :return: the entry point class name for the project or None, if one was
         not configured.
         """
-        return self.packaging['entry_point'] if 'entry_point' in self.packaging else None
+        return self.entry_point
 
-    def package_sources(self) -> bool:
+    def package_sources(self, language_config: JavaConfiguration) -> bool:
         """
         A function that returns whether the packaging task should package up the
         project source as well as the compiled code.  If this is not configured
-        in the project file, this will return `True` for library projects and
-        `False` for application projects.
+        in the project file, this will return ``True`` for library projects and
+        ``False`` for application projects.
 
         :return: whether project sources should be packaged in their own jar along
         side the compiled code jar during the packaging task.
         """
-        if 'sources' in self.packaging:
-            return self.packaging['sources']
-        return self.type == 'library'
+        return language_config.type == 'library' if self.sources is None else self.sources
 
     def sign_packages_with(self) -> Optional[str]:
         """
         A function that returns the name of a digital signature to apply to jar
-        files created by the packaging task.  If this returns `None`, no signature
+        files created by the packaging task.  If this returns ``None``, no signature
         file will be created.  Otherwise it must be the name of a known (to Python
-        signature algorithm like `sha1` or `md5`.
+        signature algorithm like ``sha256``.
 
         :return: the name of a digital signature algorithm to use in signing any
-        jar files the packaging task generates or `None`.
+        jar files the packaging task generates or ``None``.
         """
-        return self.packaging['sign_with'] if 'sign_with' in self.packaging else None
+        return self.sign_with
 
 
 def get_javac_version() -> Optional[str]:
     """
-    A function that shells out to the `javac` tool to determine the installed
-    version.  We use `javac` as we want to make sure that the JDK is installed
+    A function that shells out to the ``javac`` tool to determine the installed
+    version.  We use ``javac`` as we want to make sure that the JDK is installed
     and not just the JRE.
 
-    :return: the version of the JDK that's installed or `None` if it could not
+    :return: the version of the JDK that's installed or ``None`` if it could not
     be found.
     """
     try:
@@ -246,7 +250,7 @@ def get_javac_version() -> Optional[str]:
 
 def java_clean(language_config: JavaConfiguration):
     """
-    A function that provides the implementation of the `clean` task for the Java
+    A function that provides the implementation of the ``clean`` task for the Java
     language.  It deletes the configured build and distribution directory trees,
     if they exist.  It is not an error if either of the directories do not exist.
 
@@ -260,7 +264,7 @@ def _add_verbose_options(options: List[str], *extras):
     """
     A function for adding verbose options to the specified array of (ostensibly)
     command line options.  Verbosity must be at a 2 or higher for the extras to
-    be included and 3 or higher for the general Java `-verbose` to be included.
+    be included and 3 or higher for the general Java ``-verbose`` to be included.
 
     :param options: the options list to add verbose options to.
     :param extras: any extra verbose-style options one of the Java command line
@@ -276,7 +280,7 @@ def _add_verbose_options(options: List[str], *extras):
 # noinspection PyUnusedLocal
 def java_test(language_config: JavaConfiguration):
     """
-    A function that provides the implementation of the `test` task for the Java
+    A function that provides the implementation of the ``test`` task for the Java
     language.  It will build and execute any tests found in the location specified
     by the Java language configuration.
 
@@ -290,7 +294,7 @@ def java_test(language_config: JavaConfiguration):
 # noinspection PyUnusedLocal
 def java_doc(language_config: JavaConfiguration):
     """
-    A function that provides the implementation of the `doc` task for the Java
+    A function that provides the implementation of the ``doc`` task for the Java
     language.  It will build Java documentation for all the source found in the
     location specified by the Java language configuration.
 

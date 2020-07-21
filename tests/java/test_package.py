@@ -6,12 +6,12 @@ from pathlib import Path
 # noinspection PyPackageRequirements
 import pytest
 
-from builder.java import JavaConfiguration
+from builder.java import JavaConfiguration, PackageConfiguration
 # noinspection PyProtectedMember
 from builder.java.package import _build_jar_options, _include_directory, _get_packaging_dirs, _find_entry_point, \
     _create_manifest, _run_packager, java_package
 from builder.project import Project
-from tests.test_utils import Options, FakeProcessContext, FakeProcess, get_test_path, Regex
+from tests.test_support import Options, FakeProcessContext, FakeProcess, get_test_path, Regex
 
 
 class TestBuildOptions(object):
@@ -145,9 +145,7 @@ class TestFindEntryPoint(object):
 
 class TestCreateManifest(object):
     def test_create_manifest(self):
-        info = {'version': '1.2.3'}
-
-        lines = _create_manifest(info, 'my desc')
+        lines = _create_manifest('1.2.3', 'my desc')
 
         assert lines == [
             'Manifest-Version: 1.0',
@@ -167,8 +165,7 @@ class TestRunJar(object):
         expected = [
             'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', str(directory), '.'
         ]
-        info = {'version': '1.2.3'}
-        manifest = _create_manifest(info, 'my desc')
+        manifest = _create_manifest('1.2.3', 'my desc')
 
         with FakeProcessContext(FakeProcess(expected)):
             _run_packager(manifest, None, jar_file, directory, None, None)
@@ -180,8 +177,7 @@ class TestRunJar(object):
         expected = [
             'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', str(directory), '.'
         ]
-        info = {'version': '1.2.3'}
-        manifest = _create_manifest(info, 'my desc')
+        manifest = _create_manifest('1.2.3', 'my desc')
 
         with FakeProcessContext(FakeProcess(expected)):
             try:
@@ -200,8 +196,7 @@ class TestRunJar(object):
             'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', str(directory), '.',
             '-C', str(resources), '.'
         ]
-        info = {'version': '1.2.3'}
-        manifest = _create_manifest(info, 'my desc')
+        manifest = _create_manifest('1.2.3', 'my desc')
 
         with FakeProcessContext(FakeProcess(expected)):
             _run_packager(manifest, None, jar_file, directory, resources, None)
@@ -215,8 +210,7 @@ class TestRunJar(object):
             'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', str(directory), '.',
             '-C', str(resources), '.'
         ]
-        info = {'version': '1.2.3'}
-        manifest = _create_manifest(info, 'my desc')
+        manifest = _create_manifest('1.2.3', 'my desc')
 
         with FakeProcessContext(FakeProcess(expected)):
             try:
@@ -232,35 +226,30 @@ class TestRunJar(object):
 class TestJavaPackage(object):
     def test_no_source(self, tmpdir):
         project_dir = Path(str(tmpdir))
-        project = Project.from_dir(project_dir)
-
-        project.info['name'] = 'test'
-        project.info['version'] = '1.2.3'
+        project = Project.from_dir(project_dir, name='test', version='1.2.3')
 
         with Options(project=project):
-            config = JavaConfiguration()
+            java_config = JavaConfiguration()
+            task_config = PackageConfiguration()
 
-        # Make sure we don't ask for a sources jar.
-        config.packaging['sources'] = False
+        task_config.sources = False
 
-        jar_file = config.library_dist_dir() / 'test-1.2.3.jar'
-        directory = config.classes_dir()
+        jar_file = java_config.library_dist_dir() / 'test-1.2.3.jar'
+        directory = java_config.classes_dir()
         expected = [
             'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', str(directory), '.'
         ]
 
         with FakeProcessContext(FakeProcess(expected)):
-            java_package(project, config)
+            java_package(project, java_config, task_config)
 
     def test_sources_no_dir(self, tmpdir):
         project_dir = Path(str(tmpdir))
-        project = Project.from_dir(project_dir)
-
-        project.info['name'] = 'test'
-        project.info['version'] = '1.2.3'
+        project = Project.from_dir(project_dir, name='test', version='1.2.3')
 
         with Options(project=project):
             config = JavaConfiguration()
+            task_config = PackageConfiguration()
 
         jar_file = config.library_dist_dir() / 'test-1.2.3.jar'
         directory = config.classes_dir()
@@ -271,19 +260,17 @@ class TestJavaPackage(object):
 
         with FakeProcessContext(FakeProcess(expected)):
             with pytest.raises(ValueError) as info:
-                java_package(project, config)
+                java_package(project, config, task_config)
 
             assert info.value.args[0] == f'Cannot build a sources archive since {code_dir} does not exist.'
 
     def test_sources_with_dir(self, tmpdir):
         project_dir = Path(str(tmpdir))
-        project = Project.from_dir(project_dir)
-
-        project.info['name'] = 'test'
-        project.info['version'] = '1.2.3'
+        project = Project.from_dir(project_dir, name='test', version='1.2.3')
 
         with Options(project=project):
             config = JavaConfiguration()
+            task_config = PackageConfiguration()
 
         jar_file = config.library_dist_dir() / 'test-1.2.3.jar'
         sources_jar_file = config.library_dist_dir() / 'test-1.2.3-sources.jar'
@@ -297,4 +284,4 @@ class TestJavaPackage(object):
         ]
 
         with FakeProcessContext([FakeProcess(expected_jar), FakeProcess(expected_sources)]):
-            java_package(project, config)
+            java_package(project, config, task_config)

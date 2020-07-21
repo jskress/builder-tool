@@ -16,7 +16,7 @@ _entry_point_signature = 'public static void main(java.lang.String[]);'
 class JavaClass(object):
     """
     This class provides a representation of the information we gather about a class
-    by running the `javap` CLI tool.
+    by running the ``javap`` CLI tool.
     """
     def __init__(self, lines: Sequence[str]):
         print(lines[0])
@@ -44,8 +44,8 @@ class JavaClass(object):
     def is_entry_point(self) -> bool:
         """
         Tells whether the class we represent is an application entry point.
-        The type must be `class` and the content must include a static `main`
-        method for this to return `True`.
+        The type must be ``class`` and the content must include a static ``main``
+        method for this to return ``True``.
 
         :return: whether what we represent is a Java application entry point or
         not.
@@ -57,9 +57,9 @@ def _group_class_file_names(paths: Sequence[Path], max_length: int = 3900) -> Se
     """
     Take the given sequence of paths and split them into sequences such that
     their cumulative length is no more than requested.  This is used to build
-    command lines for the `javap` tool that are not overly long, regardless of
+    command lines for the ``javap`` tool that are not overly long, regardless of
     the lengths of individual class file names while still minimizing the number
-    of times the `javap` tool must be invoked.
+    of times the ``javap`` tool must be invoked.
 
     :param paths: the list of paths to group.
     :param max_length: the maximum cumulative length to allow.  The default is
@@ -87,10 +87,10 @@ def _group_class_file_names(paths: Sequence[Path], max_length: int = 3900) -> Se
 
 def _parse_class_info_output(lines: Sequence[str], classes: List[JavaClass]):
     """
-    A function that parses the lines printed by the `javap` tool into a list
-    of representative `JavaClass` objects.
+    A function that parses the lines printed by the ``javap`` tool into a list
+    of representative ``JavaClass`` objects.
 
-    :param lines: the output lines from the `javap` tool to parse.
+    :param lines: the output lines from the ``javap`` tool to parse.
     :return: the resulting list of Java object representations.
     """
     start = 1
@@ -106,14 +106,14 @@ def _parse_class_info_output(lines: Sequence[str], classes: List[JavaClass]):
 
 def _run_describer(classes_dir: Path, paths: Sequence[Path], public_only: bool) -> Sequence[str]:
     """
-    A function that wraps the execution of the `javap` tool.
+    A function that wraps the execution of the ``javap`` tool.
 
     :param classes_dir: the root directory for all the classes we are passing to the
-    `javap` tool.
-    :param paths: the sequence of class files to pass to the `javap` tool.  Each must
-    be relative to `classes_dir`.
-    :param public_only: controls whether the `-public` switch is given to `javap`.
-    :return: the output of the `javap` tool, as a sequence of lines.
+    ``javap`` tool.
+    :param paths: the sequence of class files to pass to the ``javap`` tool.  Each must
+    be relative to ``classes_dir``.
+    :param public_only: controls whether the ``-public`` switch is given to ``javap``.
+    :return: the output of the ``javap`` tool, as a sequence of lines.
     """
     # noinspection SpellCheckingInspection
     options = []
@@ -138,13 +138,13 @@ def _run_describer(classes_dir: Path, paths: Sequence[Path], public_only: bool) 
 def describe_classes(classes_dir: Path, public_only: bool = True) -> Sequence[JavaClass]:
     """
     This function locates all the class files in the directory sub-tree rooted
-    at the specified classes directory and generates a `JavaClass` instance for
-    each one found by using the `javap` CLI tool to describe it.
+    at the specified classes directory and generates a ``JavaClass`` instance for
+    each one found by using the ``javap`` CLI tool to describe it.
 
     :param classes_dir: the directory to scan for class files.
     :param public_only: a flag that controls whether we ask for public information
-    only about each class.  The default is `True`.
-    :return: a sequence of `JavaClass` objects that describe each of the class files
+    only about each class.  The default is ``True``.
+    :return: a sequence of ``JavaClass`` objects that describe each of the class files
     we found under the requested directory..
     """
     class_files = get_matching_files(classes_dir, '**/*.class')

@@ -1,0 +1,10 @@
+# Good project YAML file.
+
+info:
+    name: test-project
+    title: A Glorious Implementation
+    version: 1.0.1
+    languages: java
+
+vars:
+    n1: v1

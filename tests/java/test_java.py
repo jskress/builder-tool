@@ -5,21 +5,21 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from typing import Tuple, Callable, Sequence
 
-from builder.java import JavaConfiguration, get_javac_version
+from builder.java import JavaConfiguration, PackageConfiguration, get_javac_version
 # noinspection PyProtectedMember
 from builder.java.java import _add_verbose_options
 from builder.project import Project
-from tests.test_utils import Options, FakeProcess, FakeProcessContext
+from tests.test_support import Options, FakeProcess, FakeProcessContext
 
 
 class TestJavaConfig(object):
     @staticmethod
-    def _make_config(tmpdir) -> Tuple[Path, JavaConfiguration]:
+    def _make_config(tmpdir) -> Tuple[Path, JavaConfiguration, PackageConfiguration]:
         directory = Path(str(tmpdir))
         project = Project.from_dir(directory)
 
         with Options(project=project):
-            return directory, JavaConfiguration()
+            return directory, JavaConfiguration(), PackageConfiguration()
 
     @staticmethod
     def _verify_path_attr(directory: Path, config: JavaConfiguration, attr_name: str,
@@ -38,86 +38,86 @@ class TestJavaConfig(object):
         assert getattr(config, attr_name) == expected
 
     def test_code_dir(self, tmpdir):
-        directory, config = self._make_config(tmpdir)
+        directory, config, _ = self._make_config(tmpdir)
 
         self._verify_path_attr(directory, config, '_code_dir', config.code_dir, 'source', 'code_source')
 
     def test_resources_dir(self, tmpdir):
-        directory, config = self._make_config(tmpdir)
+        directory, config, _ = self._make_config(tmpdir)
 
         self._verify_path_attr(directory, config, '_resources_dir', config.resources_dir, 'source', 'code_resources')
 
     def test_tests_dir(self, tmpdir):
-        directory, config = self._make_config(tmpdir)
+        directory, config, _ = self._make_config(tmpdir)
 
         self._verify_path_attr(directory, config, '_tests_dir', config.tests_dir, 'source', 'tests_source')
 
     def test_test_resources_dir(self, tmpdir):
-        directory, config = self._make_config(tmpdir)
+        directory, config, _ = self._make_config(tmpdir)
 
         self._verify_path_attr(
             directory, config, '_test_resources_dir', config.test_resources_dir, 'source', 'test_resources'
         )
 
     def test_build_dir(self, tmpdir):
-        directory, config = self._make_config(tmpdir)
+        directory, config, _ = self._make_config(tmpdir)
 
         self._verify_path_attr(directory, config, '_build_dir', config.build_dir, 'build')
 
     def test_classes_dir(self, tmpdir):
-        directory, config = self._make_config(tmpdir)
+        directory, config, _ = self._make_config(tmpdir)
 
         self._verify_path_attr(directory, config, '_classes_dir', config.classes_dir, 'build', 'code_target')
 
     def test_dist_dir(self, tmpdir):
-        directory, config = self._make_config(tmpdir)
+        directory, config, _ = self._make_config(tmpdir)
 
         self._verify_path_attr(directory, config, '_dist_dir', config.dist_dir, 'dist')
 
     def test_library_dist_dir(self, tmpdir):
-        directory, config = self._make_config(tmpdir)
+        directory, config, _ = self._make_config(tmpdir)
 
         self._verify_path_attr(directory, config, '_lib_dir', config.library_dist_dir, 'dist', 'lib_target')
 
     def test_application_dist_dir(self, tmpdir):
-        directory, config = self._make_config(tmpdir)
+        directory, config, _ = self._make_config(tmpdir)
 
         self._verify_path_attr(directory, config, '_app_dir', config.application_dist_dir, 'dist', 'app_target')
 
     def test_entry_point(self, tmpdir):
-        _, config = self._make_config(tmpdir)
+        _, _, package_config = self._make_config(tmpdir)
 
-        assert config.entry_point() is None
+        assert package_config.get_entry_point() is None
 
-        config.packaging['entry_point'] = 'entry point'
+        package_config.entry_point = 'entry point'
 
-        assert config.entry_point() == 'entry point'
+        assert package_config.get_entry_point() == 'entry point'
 
     def test_package_sources(self, tmpdir):
-        _, config = self._make_config(tmpdir)
+        _, java_config, package_config = self._make_config(tmpdir)
 
-        assert config.package_sources() is True
+        assert package_config.package_sources(java_config) is True
 
-        config.type = 'application'
+        java_config.type = 'application'
 
-        assert config.package_sources() is False
+        assert package_config.package_sources(java_config) is False
 
-        config.packaging['sources'] = True
+        package_config.sources = True
 
-        assert config.package_sources() is True
+        assert package_config.package_sources(java_config) is True
 
-        config.type = 'library'
+        java_config.type = 'library'
 
-        assert config.package_sources() is True
+        assert package_config.package_sources(java_config) is True
 
     def test_sign_packages_with(self, tmpdir):
-        _, config = self._make_config(tmpdir)
+        _, _, package_config = self._make_config(tmpdir)
 
-        assert config.sign_packages_with() is None
+        assert package_config.sign_packages_with() is None
 
-        config.packaging['sign_with'] = 'sha1'
+        package_config.sign_with = 'sha1'
 
-        assert config.sign_packages_with() == 'sha1'
+        assert package_config.sign_packages_with() == 'sha1'
 
 
 class TestGetJavaCVersion(object):

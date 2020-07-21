@@ -13,14 +13,14 @@ class TestMaven(object):
     # noinspection PyProtectedMember
     def test_maven_resolver(self):
         dependency = Dependency.given('maven', None, 'test', '1.4.7', 'compile')
-        result = maven_resolver(dependency, None)
+        result = maven_resolver(dependency, dependency.format('{name}-{version}.jar'), None)
 
         assert isinstance(result, RemoteFile)
         assert result._parent is dependency
-        assert result.file_url() == 'https://repo1.maven.org/maven2/test/test/1.4.7/test-1.4.7.jar'
-        assert result.local_name() == Path('test/test-1.4.7.jar')
+        assert result.file_url == 'https://repo1.maven.org/maven2/test/test/1.4.7/test-1.4.7.jar'
+        assert result.local_name == Path('test/test-1.4.7.jar')
 
-        signature_files = result.get_signature_files()
+        signature_files = result.get_signature_file_info()
 
         assert signature_files == [
             ('sha1', 'https://repo1.maven.org/maven2/test/test/1.4.7/test-1.4.7.jar.sha1',
@@ -33,10 +33,10 @@ class TestMaven(object):
 
         assert isinstance(meta_file, RemoteFile)
         assert meta_file._parent is dependency
-        assert meta_file.file_url() == 'https://repo1.maven.org/maven2/test/test/1.4.7/test-1.4.7.pom'
-        assert meta_file.local_name() == Path('test/test-1.4.7.pom')
+        assert meta_file.file_url == 'https://repo1.maven.org/maven2/test/test/1.4.7/test-1.4.7.pom'
+        assert meta_file.local_name == Path('test/test-1.4.7.pom')
 
-        signature_files = meta_file.get_signature_files()
+        signature_files = meta_file.get_signature_file_info()
 
         assert signature_files == [
             ('sha1', 'https://repo1.maven.org/maven2/test/test/1.4.7/test-1.4.7.pom.sha1',

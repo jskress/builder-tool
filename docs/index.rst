@@ -12,7 +12,7 @@ of Python to run it.
 
 There are two major reasons for writing this.  Build tools like ``ant`` and ``gradle``
 are plentiful but many are overly bloated.  They come with tons of stuff that's either
-unnecessary or overly generalized.  THey are prone to being convoluted to learn.  I
+unnecessary or overly generalized.  They are prone to being convoluted to learn.  I
 wanted something simple to maintain from a project and development workflow perspective.
 Under the simplest circumstances you might not even need a project file with this.
 

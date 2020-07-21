@@ -4,13 +4,14 @@ This file contains all the unit tests for our compilation support.
 import os
 from pathlib import Path
 
+# noinspection PyPackageRequirements
 import pytest
 
 from builder.java import JavaConfiguration
 # noinspection PyProtectedMember
 from builder.java.compile import _build_compiler_options, _run_compiler, java_compile
 from builder.project import Project
-from tests.test_utils import Options, Regex, FakeProcessContext, FakeProcess
+from tests.test_support import Options, Regex, FakeProcessContext, FakeProcess
 
 
 class TestBuildOptions(object):

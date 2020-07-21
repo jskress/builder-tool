@@ -58,10 +58,10 @@ class XmlElement(object):
     def find(self, tag_name: str) -> Optional['XmlElement']:
         """
         Finds the first child of this element that carries the specified tag.  If
-        no such children exist, then `None` is returned.
+        no such children exist, then ``None`` is returned.
 
         :param tag_name: the tag name to search for.
-        :return: the first child with the given tag name or `None`.
+        :return: the first child with the given tag name or ``None``.
         """
         result = self.element.find(f'{self._namespace}{tag_name}')
         return None if result is None else XmlElement(result, self._namespace)
@@ -110,6 +110,7 @@ def parse_xml_file(path: Path) -> XmlElement:
     :param path: the path to the POM file to read.
     :return the root element of the XML document.
     """
+    # noinspection PyTypeChecker
     return _get_root_element(Xml.parse(path).getroot())
 
 

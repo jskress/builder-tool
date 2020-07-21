@@ -1,3 +1,4 @@
-/builder.egg-info/
+/builder_tool.egg-info/
 /.idea/
 /dist/
+/build/

@@ -2,7 +2,7 @@
 This file contains all the unit tests for our XML support.
 """
 from builder.java.xml_support import parse_xml_file, XmlElement
-from tests.test_utils import get_test_path
+from tests.test_support import get_test_path
 
 
 class TestXMLParsing(object):

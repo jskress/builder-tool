@@ -43,7 +43,7 @@ projects, you'd specify this configuration:
        tests_target: classes/java/test
 
 plus appropriate settings for where jar files are placed.  There's not a straight
-mapping between ``gradle`` and the build tool.
+mapping between ``gradle`` and the build tool, however.
 
 Language Tasks
 --------------
@@ -52,7 +52,7 @@ The Java language support makes the following tasks available:
 
 ``clean``
     Removes the build and distribution directories, if they exist.  It is not an error
-    error if they don't.
+    if they don't.
 
 ``compile``
     Compiles the code in the project's source code directory.  Any dependencies that
@@ -75,6 +75,9 @@ The Java language support makes the following tasks available:
     resource files will be generated.  Also, the generated jar files will be signed if
     a signature algorithm is configured.  The ``compile`` and ``test`` tasks are
     prerequisites for this task.
+
+    See :ref:`this section <package-task-conf>` for details about configuring this
+    task.
 
 ``build``
     A pseudo-task that causes all other tasks to be run.
@@ -142,25 +145,28 @@ The Java language configuration may contain these fields:
     relative to the ``dist`` field.  It will be used only when ``type`` is set to
     ``library``.  The default is ``lib``.
 
-``packaging``
-    The configuration information specific to the ``package`` task.  It must be an
-    object that may contain these fields:
+.. _package-task-conf:
 
-    ``entry_point``
-        The class name that is the entry point for an application.  If this is not
-        specified, an attempt will be made to find one automatically. It is ignored for
-        libraries.
+``package`` Task Configuration
+------------------------------
 
-    ``sources``
-        A flag that indicates whether a jar file of the project sources should be
-        created in addition to the compiled assets jar file.  If this is not specified
-        it will default to ``true`` for libraries and ``false`` for applications.
+The ``package`` task configuration may contain these fields:
 
-    ``sign_with``
-        The name of a signature algorithm (common ones are ``sha1`` and ``md5``) to use
-        to sign generated jar files.  Generated signatures are written to a file of the
-        same name as the jar file with the signature algorithm name as the extension.
-        If this is not specified, no signing happens.
+``entry_point``
+    The class name that is the entry point for an application.  If this is not
+    specified, an attempt will be made to find one automatically. It is ignored for
+    libraries.
+
+``sources``
+    A flag that indicates whether a jar file of the project sources should be
+    created in addition to the compiled assets jar file.  If this is not specified
+    it will default to ``true`` for libraries and ``false`` for applications.
+
+``sign_with``
+    The name of a signature algorithm (common ones are ``sha512`` or ``sha256``) to
+    use to sign generated jar files.  Generated signatures are written to a file of
+    the same name as the jar file with the signature algorithm name as the extension.
+    If this is not specified, no signing happens.
 
 Repositories
 ------------

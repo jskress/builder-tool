@@ -112,7 +112,7 @@ come from environment variables first.  Variables specified under the ``vars`` o
 in the project file will override those.  Variable specified :ref:`on the command line <set-option>`
 will override both.
 
-To refer to a value in the project file, use the standard ``${varname}`` syntas to
+To refer to a value in the project file, use the standard ``${varname}`` syntax to
 refer to a variable.  All variable references in a project file are resolved during
 load, before any processing.
 

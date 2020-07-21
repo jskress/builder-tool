@@ -47,7 +47,7 @@ def _resolve_property(element: Optional[XmlElement], props: Dict[str, str]) -> O
 
 def pom_to_dependencies(pom_path: Path, parent_dependency: Dependency) -> Optional[Sequence[Dependency]]:
     """
-    This function satisfies the `MetaFileParser` type defined in `dependencies`.  It
+    This function satisfies the ``MetaFileParser`` type defined in ``dependencies``.  It
     is used to parse POM files to locate transient dependencies for a dependent library.
 
     :param pom_path: the path to the POM file to read.
@@ -62,7 +62,7 @@ def pom_to_dependencies(pom_path: Path, parent_dependency: Dependency) -> Option
             group = _resolve_property(dependency.find('groupId'), properties)
             name = _resolve_property(dependency.find('artifactId'), properties)
             version = _resolve_property(dependency.find('version'), properties)
-            result.append(Dependency.given(parent_dependency.repo(), group, name, version,
-                                           parent_dependency.scope()))
+            result.append(Dependency.given(parent_dependency.repo, group, name, version,
+                                           parent_dependency.scope))
 
     return result

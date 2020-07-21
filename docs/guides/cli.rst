@@ -5,7 +5,7 @@ Using the CLI
 The builder tool expects to be given at least one task to perform.  If you don't
 give it one, as in:
 
-.. code-block:: bash
+.. code-block:: console
 
    --> builder
 
@@ -14,7 +14,7 @@ project and a note about no tasks being given.  It will then show you the set
 of known languages and the tasks each one makes available.  Something like
 this:
 
-.. code-block:: bash
+.. code-block:: console
 
    --> builder
    Project: my-cool-project -- A project to save the world!
@@ -30,7 +30,7 @@ this:
 
 The builder tool comes with complete online help by doing:
 
-.. code-block:: bash
+.. code-block:: console
 
    --> builder --help
 
@@ -64,13 +64,13 @@ a few of them that require a bit more information.
     option can be a simple ``name=value`` expression or a comma-delimited list of
     them as in:
 
-    .. code-block:: bash
+    .. code-block:: console
 
        --set key1=value1,key2=value2
 
     The option may also be repeated like so:
 
-    .. code-block:: bash
+    .. code-block:: console
 
        --set key1=value1 --set key2=value2
 

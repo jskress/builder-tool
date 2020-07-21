@@ -1,14 +1,19 @@
 # This is our main make file.
-all: docs dist
+all: clean test docs dist
 
 clean:
-	@rm -rf dist
+	@rm -rf dist build builder_tool.egg-info
+
+test:
+	@pytest
 
 docs:
 	${MAKE} -C docs html
 
 dist:
-	python3 setup.py sdist bdist_wheel
-#	python3 -m twine upload dist/*
+	@python3 setup.py sdist bdist_wheel
 
-.PHONY: all docs dist
+publish:
+	@python3 -m twine upload dist/*
+
+.PHONY: all clean test docs dist publish
