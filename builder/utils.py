@@ -14,6 +14,7 @@ import click
 PathSequence = Union[Sequence[Path], Sequence[str]]
 T = TypeVar("T")
 _var_pattern = re.compile(r'[$]{(.*?)[}]')
+_template_pattern = re.compile(r'[{][{](.*?)[}][}]')
 
 # Types for function references.
 SubprocessRunner = Callable[[Sequence[str], bool, Path], subprocess.CompletedProcess]
@@ -211,31 +212,56 @@ class GlobalOptions(object):
         value = self._project.get_var_value(name) if self._project else None
         return value or os.environ.get(name)
 
-    def substitute(self, text: str, extras: Optional[Dict[str, str]] = None, ignore_global_vars: bool = False) -> str:
+    def substitute(self, text: str, extras: Optional[Dict[str, str]] = None, ignore_global_vars: bool = False,
+                   use_template_form: bool = False, resolver: Optional[Callable[[str], Optional[str]]] = None,
+                   default: str = '') -> str:
         """
-        A function to perform variable substitution in a string.  Variables must be in the
-        form, ``${var-name}``.  The value of ``var-name`` is determined by the `var()` function.
-        In addition, a dictionary of name/value pairs may be provided.  These will take
-        precedence over the ``var()`` function result.  If the named variable has no value,
-        it is replaced with the empty string.
+        A function to perform variable substitution in a string.  Variables must be in
+        either the ``${var-name}`` or ``{{var-name}}`` form; which is used is based on
+        the ``use_template_form`` parameter.  If a resolver is provided, it will be used
+        first.  If it returns ``None``, the ``extras`` dictionary will be checked followed
+        by the ``var()`` function.  If the named variable has no value, it is replaced
+        with the ``default`` string.  If the default string is ``None``, the text is left
+        alone.
 
         :param text: the text within which variables should be found and replaced.
         :param extras: an optional dictionary of name/value pairs.
-        :param ignore_global_vars: if ``True``, the global variable resolution will be skipped.
-        In this case, ``extras`` will be the sole source of name/value resolution.
+        :param ignore_global_vars: if ``True``, the global variable resolution will be
+        skipped. In this case, ``extras`` will be the sole source of name/value resolution.
+        :param use_template_form: if ``True``, substitution will be performed using
+        ``{{`` and ``}}`` as delimiters.  Otherwise, ``${`` and ``}`` will be used.
+        :param resolver: an optional resolver for the text within a variable/template
+        reference.
+        :param default: the default value to use; ``None`` means leave an unresolvable
+        reference alone.
         :return: The value of `text`, but with all variable references replaced by their
         values.
         """
+
         def do_substitution(match: Match[str]) -> str:
             name = match.group(1).strip()
+            if resolver:
+                value = resolver(name)
+                if value:
+                    return value
             if extras and name in extras:
                 return extras[name]
             value = None
             if not ignore_global_vars:
                 value = self.var(name)
-            return value or ''
+            if not value:
+                if default is None:
+                    value = f'{start_delimiter}{match.group(1)}{end_delimiter}'
+                else:
+                    value = default
+            return value
 
-        return _var_pattern.sub(do_substitution, text)
+        if use_template_form:
+            start_delimiter, end_delimiter = ('{{', '}}')
+            return _template_pattern.sub(do_substitution, text)
+        else:
+            start_delimiter, end_delimiter = ('${', '}')
+            return _var_pattern.sub(do_substitution, text)
 
     def tasks(self) -> Sequence[str]:
         """

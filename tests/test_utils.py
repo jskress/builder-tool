@@ -3,6 +3,7 @@ This file contains all the unit tests for our framework's utilities support.
 """
 import os
 from pathlib import Path
+from typing import Optional
 
 # noinspection PyPackageRequirements
 import pytest
@@ -151,6 +152,12 @@ class TestGlobalOptions(object):
         options.set_vars(['bob=larry'])
         extras = {'bob': 'jr'}
 
+        def fake_resolver(text: str) -> Optional[str]:
+            if text == 'bob':
+                return 'Archibald'
+            else:
+                return None
+
         assert options.substitute('${bob') == '${bob'
         assert options.substitute('$bob}') == '$bob}'
         assert options.substitute('{bob}') == '{bob}'
@@ -161,6 +168,10 @@ class TestGlobalOptions(object):
         assert options.substitute('${bob}/${bob}') == 'larry/larry'
         assert options.substitute('${${bob}}') == '}'
         assert options.substitute('${  bob  }') == 'larry'
+        assert options.substitute('${bob2}', default='hi') == 'hi'
+        assert options.substitute('{{bob}}', use_template_form=True) == 'larry'
+        assert options.substitute('${bob}', resolver=fake_resolver) == 'Archibald'
+        assert options.substitute('${bob2}', resolver=fake_resolver) == ''
 
 
 class TestTempTextFile(object):
