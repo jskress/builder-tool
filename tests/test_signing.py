@@ -5,47 +5,100 @@ import hashlib
 from pathlib import Path
 
 # noinspection PyPackageRequirements
-import pytest
+from unittest.mock import MagicMock
 
-from builder.signing import sign_path
-
-
-def _sign_data(data: bytes) -> str:
-    digest_constructor = getattr(hashlib, 'md5', None)
-    digest = digest_constructor()
-    digest.update(data)
-    return digest.hexdigest()
+# noinspection PyProtectedMember
+from builder.signing import sign_path, supported_signatures, sign_path_to_files, _get_reference_signature, \
+    verify_signature
 
 
 class TestSigning(object):
-    def test_no_such_algorithm(self, tmpdir):
-        path = Path(tmpdir)
+    def test_supported_signatures(self):
+        for name in supported_signatures:
+            digest_constructor = getattr(hashlib, name, None)
 
-        with pytest.raises(ValueError) as info:
-            sign_path('no_such_signature', path)
+            assert digest_constructor is not None
 
-        assert info.value.args[0] == 'There is no support for the no_such_signature signature algorithm.'
+    def test_sign_path(self, tmpdir):
+        path = Path(str(tmpdir)) / 'test.txt'
 
-    def test_signing_with_no_save(self, tmpdir):
-        data = 'test\n'.encode()
-        file = Path(tmpdir) / 'test.bin'
-        sign_file = Path(tmpdir) / 'test.bin.nd5'
+        path.write_text("Testing.\n", encoding='utf-8')
 
-        with file.open('wb') as fd:
-            fd.write(data)
+        data = path.read_bytes()
+        expected_signatures = {}
 
-        assert sign_path('md5', file) == _sign_data(data)
-        assert not sign_file.exists()
+        for name in supported_signatures:
+            digest = getattr(hashlib, name, None)()
+            digest.update(data)
+            expected_signatures[name] = digest.hexdigest()
 
-    def test_signing_with_save(self, tmpdir):
-        data = 'test\n'.encode()
-        file = Path(tmpdir) / 'test.bin'
-        sign_file = file.parent / 'test.bin.md5'
-        signature = _sign_data(data)
+        assert sign_path(path) == expected_signatures
 
-        with file.open('wb') as fd:
-            fd.write(data)
+    def test_sign_path_to_files(self, tmpdir):
+        path = Path(str(tmpdir)) / 'test.txt'
 
-        assert sign_path('md5', file, save_to_file=True) == signature
-        assert sign_file.exists()
-        assert sign_file.read_text() == signature
+        path.write_text("Testing.\n", encoding='utf-8')
+
+        signatures = sign_path(path)
+
+        sign_path_to_files(path)
+
+        for name in supported_signatures:
+            signature_file = path.parent / f'{path.name}.{name}'
+
+            assert signature_file.is_file() is True
+            assert signature_file.read_text(encoding='utf-8') == signatures[name]
+
+    # noinspection PyTypeChecker
+    def test_get_reference_signature_no_file(self):
+        function = MagicMock(return_value=None)
+
+        assert _get_reference_signature('sig', None, 'base-name', function) is None
+
+        function.assert_called_once_with('base-name.sig')
+
+    # noinspection PyTypeChecker
+    def test_get_reference_signature_with_file(self, tmpdir):
+        directory = Path(str(tmpdir))
+        path = directory / 'base-name.sig'
+        function = MagicMock(return_value=path)
+
+        path.write_text("Testing...\n", encoding='utf-8')
+
+        assert _get_reference_signature('sig', None, 'base-name', function) == "Testing..."
+
+        function.assert_called_once_with('base-name.sig')
+
+    # noinspection PyTypeChecker
+    def test_get_reference_signature_no_signature(self):
+        function = MagicMock(return_value=None)
+
+        assert _get_reference_signature('sig', {}, 'base-name', function) is None
+
+        function.assert_not_called()
+
+    # noinspection PyTypeChecker
+    def test_get_reference_signature_with_signature(self):
+        function = MagicMock(return_value=None)
+
+        assert _get_reference_signature('sig', {
+            'sig': 'digital-signature'
+        }, 'base-name', function) == 'digital-signature'
+
+        function.assert_not_called()
+
+    # noinspection PyTypeChecker
+    def test_verify_signature(self, tmpdir):
+        directory = Path(str(tmpdir))
+        path = directory / 'file.sig'
+        function = MagicMock(return_value=None)
+
+        path.write_text("Testing...\n", encoding='utf-8')
+
+        signatures = sign_path(path)
+
+        # No matching signatures.
+        assert verify_signature(path, {}, function) is False
+
+        # With matching signature.
+        assert verify_signature(path, signatures, function) is True

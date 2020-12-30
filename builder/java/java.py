@@ -1,9 +1,11 @@
 """
 This library contains all the build tasks and support code for Java.
 """
+import os
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
+from builder.models import DependencyPathSet, Dependency
 from builder.utils import checked_run, global_options, remove_directory
 
 
@@ -15,6 +17,7 @@ class JavaConfiguration(object):
         self.code_source = 'code'
         self.code_resources = 'resources'
         self.code_target = 'code/classes'
+        self.code_doc = 'code/javadoc'
         self.tests_source = 'tests'
         self.test_resources = 'test_resources'
         self.tests_target = 'tests/classes'
@@ -29,6 +32,7 @@ class JavaConfiguration(object):
         self._test_resources_dir = None
         self._build_dir = None
         self._classes_dir = None
+        self._doc_dir = None
         self._dist_dir = None
         self._lib_dir = None
         self._app_dir = None
@@ -129,13 +133,31 @@ class JavaConfiguration(object):
         does not exist.
         :param ensure: a flag indicating whether the directory should be created if
         it doesn't exist.
-        :return: the path to where compiled code files will be written..
+        :return: the path to where compiled code files will be written.
         """
         if not self._classes_dir:
             self._classes_dir = self._project.project_dir(
                 Path(self.build) / Path(self.code_target), required, ensure
             )
         return self._classes_dir
+
+    def doc_dir(self, required: bool = False, ensure: bool = False) -> Path:
+        """
+        A function that returns the path to where JavaDoc files for the code should
+        be written or found.  The path returned is absolute, the root of which comes
+        from the current project.
+
+        :param required: a flag indicating whether we should fail if the directory
+        does not exist.
+        :param ensure: a flag indicating whether the directory should be created if
+        it doesn't exist.
+        :return: the path to where JavaDoc files will be written.
+        """
+        if not self._doc_dir:
+            self._doc_dir = self._project.project_dir(
+                Path(self.build) / Path(self.code_doc), required, ensure
+            )
+        return self._doc_dir
 
     def dist_dir(self, required: bool = False, ensure: bool = False) -> Path:
         """
@@ -194,7 +216,7 @@ class PackageConfiguration(object):
     def __init__(self):
         self.entry_point = None
         self.sources = None
-        self.sign_with = None
+        self.doc = None
 
     def get_entry_point(self) -> Optional[str]:
         """
@@ -218,34 +240,35 @@ class PackageConfiguration(object):
         """
         return language_config.type == 'library' if self.sources is None else self.sources
 
-    def sign_packages_with(self) -> Optional[str]:
+    def package_doc(self, language_config: JavaConfiguration) -> bool:
         """
-        A function that returns the name of a digital signature to apply to jar
-        files created by the packaging task.  If this returns ``None``, no signature
-        file will be created.  Otherwise it must be the name of a known (to Python
-        signature algorithm like ``sha256``.
+        A function that returns whether the packaging task should package up the
+        project's JavaDoc as well as the compiled code.  If this is not configured
+        in the project file, this will return ``True`` for library projects and
+        ``False`` for application projects.
 
-        :return: the name of a digital signature algorithm to use in signing any
-        jar files the packaging task generates or ``None``.
+        :return: whether project JavaDoc should be packaged in their own jar along
+        side the compiled code jar during the packaging task.
         """
-        return self.sign_with
+        return language_config.type == 'library' if self.doc is None else self.doc
 
 
-def get_javac_version() -> Optional[str]:
+def get_javac_version() -> Tuple[Optional[str], Optional[int]]:
     """
     A function that shells out to the ``javac`` tool to determine the installed
     version.  We use ``javac`` as we want to make sure that the JDK is installed
     and not just the JRE.
 
-    :return: the version of the JDK that's installed or ``None`` if it could not
-    be found.
+    :return: a tuple with the version of the JDK that's installed as string and as
+    a major number.  Both tuple entries will be ``None`` if a version  could not be
+    determined..
     """
     try:
         process = checked_run(['javac', '-version'], 'Javac version check', capture=True)
         version = process.stdout.decode().split(' ')[1].strip()
-        return version
+        return version, int(version.split(".")[0])
     except FileNotFoundError:
-        return None
+        return None, None
 
 
 def java_clean(language_config: JavaConfiguration):
@@ -277,6 +300,20 @@ def _add_verbose_options(options: List[str], *extras):
             options.insert(0, '-verbose')
 
 
+def _add_class_path(options: List[str], path_sets: List[DependencyPathSet]):
+    """
+    A function for adding the given set of dependency path sets to the specified
+    array of (ostensibly) command line options.
+
+    :param options: the options list to add verbose options to.
+    :param path_sets: the list of path sets to make a class path option out of.
+    """
+    if path_sets:
+        paths = [str(path_set.primary_path) for path_set in path_sets]
+        options.append('--class-path')
+        options.append(os.pathsep.join(paths))
+
+
 # noinspection PyUnusedLocal
 def java_test(language_config: JavaConfiguration):
     """
@@ -291,18 +328,24 @@ def java_test(language_config: JavaConfiguration):
     pass
 
 
-# noinspection PyUnusedLocal
-def java_doc(language_config: JavaConfiguration):
+def build_names(dependency: Dependency, version_in_url: bool = True) -> Tuple[str, Path, str]:
     """
-    A function that provides the implementation of the ``doc`` task for the Java
-    language.  It will build Java documentation for all the source found in the
-    location specified by the Java language configuration.
+    A function to build directory and file names based on the given dependency..
 
-    **Note:** This is not currently implemented.
-
-    :param language_config: the configured Java language information.
+    :param dependency: the dependency to create the file container for.
+    :param version_in_url: a flag noting whether the dependency version should be included
+    in the URL we build.
+    :return: a tuple containing an appropriate file container and a base file name.
     """
-    pass
+    group = dependency.group
+    name = dependency.name
+    version = dependency.version
+    directory_url = f'https://repo1.maven.org/maven2/{group}/{name}'
+
+    if version_in_url:
+        directory_url = f'{directory_url}/{version}'
+
+    return directory_url, Path(name), f'{name}-{version}'
 
 
-java_version = get_javac_version()
+java_version, java_version_number = get_javac_version()

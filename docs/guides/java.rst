@@ -66,21 +66,28 @@ The Java language support makes the following tasks available:
     prerequisite for this task.
 
 ``doc``
-    Runs ``javadoc`` against all the sources in the project's source code directory.
+    Runs ``javadoc`` against all the sources in the project's source code directory.  You
+    should include ``doc`` as a dependency scope on any dependency also used for compliation.
 
 ``package``
     Builds a jar file of the compiled classes in the project's code target and source
     resources directories.  If indicated by the packaging section of the language
-    configuration, a second jar file containing the project's source code and source
-    resource files will be generated.  Also, the generated jar files will be signed if
-    a signature algorithm is configured.  The ``compile`` and ``test`` tasks are
+    configuration, additional jar files containing the project's source code and source
+    resource files and JavaDoc will be generated.  An appropriate module JSON file will
+    also be generated for the generated jars.  The ``compile`` and ``test`` tasks are
     prerequisites for this task.
 
-    See :ref:`this section <package-task-conf>` for details about configuring this
-    task.
+    See :ref:`this section <package-task-conf>` for details about configuring this task.
 
 ``build``
     A pseudo-task that causes all other tasks to be run.
+
+``check-versions``
+    Runs through the full list of dependencies specified for the current project and
+    checks whether each dependency is at the latest level.  For remote dependencies,
+    this is resolved using the ``maven-metadata.xml`` file (downloaded straight from
+    Maven) for the dependency.  For local and project dependencies, the relevant
+    directories are scanned for matching jar files.
 
 Language Configuration
 ----------------------
@@ -88,13 +95,13 @@ Language Configuration
 The Java language configuration may contain these fields:
 
 ``type``
-    The type of Java project this is which will affect how the
-    various tasks behave.  Allowed values are:
+    The type of Java project this is which will affect how the various tasks behave.
+    Allowed values are:
 
     ``library``
-        The project is a library or API.  This implies that the sources for the project
-        will also be packaged into a jar (as IDEs can make use of such jars) unless
-        specifically disabled.  This is the default.
+        The project is a library or API.  This implies that the sources and JavaDoc for
+        the project will also be packaged into jars (as IDEs can make use of such jars)
+        unless specifically disabled.  This is the default.
 
     ``application``
         The project is an application.  This implies that an entry point is required.
@@ -119,6 +126,10 @@ The Java language configuration may contain these fields:
 ``code_target``
     The name of the directory where compiled code will be placed.  It is relative to
     the ``build`` field.  The default is ``code/classes``.
+
+``code_doc``
+    The name of the directory where generated JavaDoc will be placed.  It is relative
+    to the ``build`` field.  The default is ``code/javadoc``.
 
 ``tests_source``
     The name of the source code directory for tests.  It is relative to the ``source``
@@ -158,20 +169,11 @@ The ``package`` task configuration may contain these fields:
     libraries.
 
 ``sources``
-    A flag that indicates whether a jar file of the project sources should be
-    created in addition to the compiled assets jar file.  If this is not specified
-    it will default to ``true`` for libraries and ``false`` for applications.
+    A flag that indicates whether a jar file of the project sources should be created
+    in addition to the compiled assets jar file.  If this is not specified it will
+    default to ``true`` for libraries and ``false`` for applications.
 
-``sign_with``
-    The name of a signature algorithm (common ones are ``sha512`` or ``sha256``) to
-    use to sign generated jar files.  Generated signatures are written to a file of
-    the same name as the jar file with the signature algorithm name as the extension.
-    If this is not specified, no signing happens.
-
-Repositories
-------------
-
-The Java language support makes known a repository type of ``maven``.  If the ``repo``
-field of a dependency object specifies ``maven`` then the dependency will be retrieved
-from Maven Central.  There is currently no support for other mirrors or separate Maven
-repositories, though it is in the plan to support that.
+``doc``
+    A flag that indicates where a jar file of the project's JavaDoc should be created
+    in addition to the compiled assets jar file.  If this is not specified it will
+    default to ``true`` for libraries and ``false`` for applications.

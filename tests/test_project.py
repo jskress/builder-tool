@@ -6,7 +6,7 @@ from pathlib import Path
 # noinspection PyPackageRequirements
 import pytest
 
-from builder.dependencies import DependencySet
+from builder.models import DependencySet
 # noinspection PyProtectedMember
 from builder.project import _schema, Project, _fix_up_language_list, _resolve_vars_in_dict, _resolve_vars_in_list, \
     get_project
@@ -40,7 +40,7 @@ class TestProjectSchema(object):
                     'additionalProperties': {
                         'type': 'object',
                         'properties': {
-                            'repo': {'type': 'string', 'minLength': 1},
+                            'location': {'type': 'string', 'enum': ['remote', 'local', 'project']},
                             'group': {'type': 'string', 'minLength': 1},
                             'name': {'type': 'string', 'minLength': 1},
                             'version': {'type': 'string', 'format': 'semver'},
@@ -51,7 +51,7 @@ class TestProjectSchema(object):
                                 ]
                             }
                         },
-                        'required': ['repo', 'version', 'scope'],
+                        'required': ['location', 'version', 'scope'],
                         'additionalProperties': False
                     }
                 },
@@ -61,6 +61,14 @@ class TestProjectSchema(object):
                         'type': 'string',
                         'minLength': 1
                     }
+                },
+                'locations': {
+                    'type': 'object',
+                    'properties': {
+                        'local': {'type': 'array', 'items': {'type': 'string', 'minLength': 1}},
+                        'project': {'type': 'array', 'items': {'type': 'string', 'minLength': 1}}
+                    },
+                    'additionalProperties': False
                 }
             },
             'required': ['info']

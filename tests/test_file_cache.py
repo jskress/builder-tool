@@ -104,9 +104,7 @@ class TestFileCache(object):
             mock_frf.return_value = True
 
             assert cache.resolve_file('the-url', the_file) == path
-            assert mock_download.mock_calls == [
-                call('the-url', path, False)
-            ]
+            assert mock_download.mock_calls == [call('the-url', path)]
 
     def test_resolve_file_existing_file_with_force_fails(self, tmpdir):
         base_path = Path(str(tmpdir))
@@ -127,9 +125,7 @@ class TestFileCache(object):
             mock_frf.return_value = True
 
             assert cache.resolve_file('the-url', the_file) is None
-            assert mock_download.mock_calls == [
-                call('the-url', path, False)
-            ]
+            assert mock_download.mock_calls == [call('the-url', path)]
 
     def test_resolve_file_missing_file_fails(self, tmpdir):
         base_path = Path(str(tmpdir))
@@ -146,9 +142,7 @@ class TestFileCache(object):
             mock_frf.return_value = False
 
             assert cache.resolve_file('the-url', the_file) is None
-            assert mock_download.mock_calls == [
-                call('the-url', path, False)
-            ]
+            assert mock_download.mock_calls == [call('the-url', path)]
 
     def test_resolve_file_missing_file_works(self, tmpdir):
         base_path = Path(str(tmpdir))
@@ -165,9 +159,7 @@ class TestFileCache(object):
             mock_frf.return_value = False
 
             assert cache.resolve_file('the-url', the_file) == path
-            assert mock_download.mock_calls == [
-                call('the-url', path, False)
-            ]
+            assert mock_download.mock_calls == [call('the-url', path)]
 
     def test_resolve_file_handles_http_error(self, tmpdir):
         base_path = Path(str(tmpdir))
@@ -188,9 +180,9 @@ class TestFileCache(object):
             mock_dl_size.return_value = (None, False)
 
             # noinspection PyProtectedMember
-            assert FileCache._download_file('the-url', Path('the-path'), False) is False
+            assert FileCache._download_file('the-url', Path('the-path')) is False
 
-        assert mock_dl_size.mock_calls == [call('the-url', False)]
+        assert mock_dl_size.mock_calls == [call('the-url')]
 
     def test_download_file_http_error(self):
         response = FakeResponse(502, msg='Run away!')
@@ -203,9 +195,9 @@ class TestFileCache(object):
 
                 with pytest.raises(HTTPError) as he:
                     # noinspection PyProtectedMember
-                    _ = FileCache._download_file('the-url', Path('the-path'), False)
+                    _ = FileCache._download_file('the-url', Path('the-path'))
 
-        assert mock_dl_size.mock_calls == [call('the-url', False)]
+        assert mock_dl_size.mock_calls == [call('the-url')]
         assert mock_requests.get.mock_calls == [
             call('the-url', allow_redirects=True)
         ]
@@ -224,7 +216,7 @@ class TestFileCache(object):
                 mock_requests.get.return_value = response
 
                 # noinspection PyProtectedMember
-                assert FileCache._download_file('the-url', path, False) is True
+                assert FileCache._download_file('the-url', path) is True
 
         assert path.exists()
         assert path.read_text(encoding='utf-8') == expected
@@ -245,7 +237,7 @@ class TestFileCache(object):
         with patch('builder.file_cache.requests') as mock_requests:
             mock_requests.head.return_value = response
 
-            length, exists = FileCache._get_download_file_size('the-url', optional=False)
+            length, exists = FileCache._get_download_file_size('the-url')
 
         assert mock_requests.head.mock_calls == [
             call('the-url', allow_redirects=True)
@@ -260,7 +252,7 @@ class TestFileCache(object):
         with patch('builder.file_cache.requests') as mock_requests:
             mock_requests.head.return_value = response
 
-            length, exists = FileCache._get_download_file_size('the-url', optional=False)
+            length, exists = FileCache._get_download_file_size('the-url')
 
         assert mock_requests.head.mock_calls == [
             call('the-url', allow_redirects=True)
@@ -269,29 +261,13 @@ class TestFileCache(object):
         assert exists is True
 
     # noinspection PyProtectedMember
-    def test_get_download_file_size_no_required_file(self):
+    def test_get_download_file_size_no_file(self):
         response = FakeResponse(404, msg='Run away!')
 
         with patch('builder.file_cache.requests') as mock_requests:
             mock_requests.head.return_value = response
 
-            with pytest.raises(HTTPError) as he:
-                _, _ = FileCache._get_download_file_size('the-url', optional=False)
-
-        assert mock_requests.head.mock_calls == [
-            call('the-url', allow_redirects=True)
-        ]
-        assert he.value.response == response
-        assert he.value.args[0] == 'Run away!'
-
-    # noinspection PyProtectedMember
-    def test_get_download_file_size_no_optional_file(self):
-        response = FakeResponse(404, msg='Run away!')
-
-        with patch('builder.file_cache.requests') as mock_requests:
-            mock_requests.head.return_value = response
-
-            length, exists = FileCache._get_download_file_size('the-url', optional=True)
+            length, exists = FileCache._get_download_file_size('the-url')
 
         assert mock_requests.head.mock_calls == [
             call('the-url', allow_redirects=True)

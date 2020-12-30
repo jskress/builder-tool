@@ -34,10 +34,12 @@ is referred to as a pseudo-task.  Obviously, disabling prerequisite processing a
 specifying a pseudo-task will accomplish nothing.
 
 The tool also provides first class support for dependency management, the key
-reason for having any sort of build tool in the first place.  (Otherwise, a language's
-CLI tools are usually fine).  This refers to satisfying the need for libraries, APIs
-and such that are needed to build a given piece of software, including any libraries
-*those* libraries or APIs need.
+reason for having any sort of non-trivial build tool in the first place.  (Otherwise,
+a language's CLI tools are usually fine.)  This refers to satisfying the need for
+libraries, APIs and such that are needed to build a given piece of software,
+including any libraries *those* libraries or APIs need.  Dependencies are scoped to
+task names as it is reasonable, say, for a compile task to require fewer dependencies
+than a package task.
 
 .. _the-language-guide:
 
@@ -59,7 +61,7 @@ languages and the use of the ``builder`` command line interface.
 The Languages Guide
 -------------------
 
-This part of the documentation covers each supported language, its configuration abd
+This part of the documentation covers each supported language, its configuration and
 operation within the builder tool.
 
 .. toctree::

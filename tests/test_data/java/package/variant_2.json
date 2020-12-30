@@ -1,0 +1,45 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "project",
+    "module": "project",
+    "version": "1.3.4",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "builder": {
+      "version": "0.3.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 15,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "dep",
+          "module": "dep",
+          "version": "1.2.3",
+          "attributes": {
+            "org.gradle.status": "release"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "fake.jar",
+          "url": "fake.jar",
+          "size": 8
+        }
+      ]
+    }
+  ]
+}

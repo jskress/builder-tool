@@ -19,7 +19,6 @@ class JavaClass(object):
     by running the ``javap`` CLI tool.
     """
     def __init__(self, lines: Sequence[str]):
-        print(lines[0])
         match = _name_pattern.match(lines[0])
         self._type = match.group(1)
         self._name = match.group(2)

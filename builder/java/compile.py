@@ -1,15 +1,15 @@
 """
 This file provides all the support we need around compiling and javac.
 """
-import os
 from pathlib import Path
-from typing import Optional, List, Sequence
+from typing import List
 
-from builder.java.java import _add_verbose_options, JavaConfiguration
+from builder.java.java import _add_verbose_options, JavaConfiguration, _add_class_path
+from builder.models import DependencyPathSet
 from builder.utils import get_matching_files, TempTextFile, checked_run
 
 
-def _build_compiler_options(classes_dir: Path, class_path: Optional[Sequence[Path]] = None) -> List[str]:
+def _build_compiler_options(classes_dir: Path, class_path: List[DependencyPathSet]) -> List[str]:
     """
     Build a list of the command line options we need to send to the ``javac`` tool.
 
@@ -25,16 +25,12 @@ def _build_compiler_options(classes_dir: Path, class_path: Optional[Sequence[Pat
 
     # noinspection SpellCheckingInspection
     _add_verbose_options(options, '-Xdiags:verbose')
-
-    if class_path is not None and len(class_path) > 0:
-        class_path = [str(path) for path in class_path]
-        options.append('--class-path')
-        options.append(os.pathsep.join(class_path))
+    _add_class_path(options, class_path)
 
     return options
 
 
-def _run_compiler(java_dir: Path, classes_dir: Path, class_path: Optional[Sequence[Path]] = None):
+def _run_compiler(java_dir: Path, classes_dir: Path, class_path: List[DependencyPathSet]):
     """
     A function that executes the ``javac`` tool with appropriate parameters.  Globbing
     is used to search for Java files whose names are written to a temporary file.  That
@@ -57,7 +53,7 @@ def _run_compiler(java_dir: Path, classes_dir: Path, class_path: Optional[Sequen
             raise ValueError('Java source could not be compiled.')
 
 
-def java_compile(language_config: JavaConfiguration, dependencies: Optional[Sequence[Path]] = None):
+def java_compile(language_config: JavaConfiguration, dependencies: List[DependencyPathSet]):
     """
     A function that will compile a collection of Java source files
 

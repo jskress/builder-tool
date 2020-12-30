@@ -1,15 +1,16 @@
 """
 This library provides an object that represents a project.
 """
+from collections.abc import KeysView
 from pathlib import Path
 from typing import Sequence, Optional, Dict, Union, Any, MutableMapping, Mapping, List
 
 import yaml
 
-from builder.dependencies import DependencySet
+from builder.models import DependencySet, DependencyContext
 from builder.schema import ArraySchema, ObjectSchema, OneOfSchema, StringSchema
 from builder.schema_validator import SchemaValidator
-from builder.task_module import get_task_module, ModuleSet
+from builder.task_module import get_language_module, ModuleSet
 from builder.utils import global_options
 
 _schema = ObjectSchema() \
@@ -28,7 +29,7 @@ _schema = ObjectSchema() \
         dependencies=ObjectSchema()
             .additional_properties(ObjectSchema()
                 .properties(
-                    repo=StringSchema().min_length(1),
+                    location=StringSchema().enum('remote', 'local', 'project'),
                     group=StringSchema().min_length(1),
                     name=StringSchema().min_length(1),
                     version=StringSchema().format("semver"),
@@ -37,10 +38,16 @@ _schema = ObjectSchema() \
                         ArraySchema().items(StringSchema().min_length(1))
                     )
                 )
-                .required('repo', 'version', 'scope')
+                .required('location', 'version', 'scope')
                 .additional_properties(False)
             ),
-        vars=ObjectSchema().additional_properties(StringSchema().min_length(1))
+        vars=ObjectSchema().additional_properties(StringSchema().min_length(1)),
+        locations=ObjectSchema()
+            .properties(
+                local=ArraySchema().items(StringSchema().min_length(1)),
+                project=ArraySchema().items(StringSchema().min_length(1))
+            )
+            .additional_properties(False)
     )\
     .required('info')
 _project_file_schema = SchemaValidator(schema=_schema)
@@ -110,6 +117,8 @@ class Project(object):
             self._info['version'] = '0.0.1'
         _fix_up_language_list(self._info)
         self._prefetch_module_set()
+        self._local_paths = self._translate_to_paths('local')
+        self._project_cache = ProjectCache(self._translate_to_paths('project'))
         self._dependencies = DependencySet(content['dependencies'] if 'dependencies' in content else {})
         self._config_cache = {}
 
@@ -126,10 +135,30 @@ class Project(object):
         of the specific languages that could not be loaded is made.
         """
         languages = self._info['languages']
-        modules = {language: get_task_module(language) for language in languages}
+        modules = {language: get_language_module(language) for language in languages}
         unknowns = [key for key, value in modules.items() if value is None]
         self._module_set = ModuleSet(modules) if len(unknowns) == 0 else None
         self._unknown_languages = None if len(unknowns) == 0 else unknowns
+
+    def _translate_to_paths(self, key: str) -> List[Path]:
+        def to_path(text: str) -> Path:
+            path = Path(text).expanduser()
+
+            if not path.is_absolute():
+                path = self._directory.joinpath(path)
+
+            path = path.resolve()
+
+            # The path must exist as a directory.
+            if not path.is_dir():
+                raise ValueError('The {key} location, {text} is not a directory.')
+
+            return path.absolute()
+
+        if 'locations' in self._content and key in self._content['locations']:
+            return [to_path(string) for string in self._content['locations'][key]]
+
+        return []
 
     @property
     def name(self) -> str:
@@ -160,6 +189,26 @@ class Project(object):
         name = self._info['name']
         title = self._info['title'] if 'title' in self._info else None
         return name if title is None else f'{name} -- {title}'
+
+    @property
+    def local_locations(self) -> List[Path]:
+        """
+        A read-only property that returns the list of local location paths configured
+        for this project.  The list returned may be empty but will never be ``None``.
+
+        :return: the list of local location paths for the project.
+        """
+        return self._local_paths
+
+    @property
+    def project_cache(self) -> 'ProjectCache':
+        """
+        A read-only property that returns a cache of projects defined as locations
+        within this project.
+
+        :return: this project's project location cache.
+        """
+        return self._project_cache
 
     def has_no_languages(self) -> bool:
         """
@@ -209,6 +258,18 @@ class Project(object):
         :return: the project's set of dependencies.
         """
         return self._dependencies
+
+    def get_full_dependency_context(self, language: str) -> DependencyContext:
+        """
+        A function to create a dependency context for the full set of dependencies noted in
+        the project.  This context is less meant for actual resolution as for support tasks
+        such as dependency version checking.
+
+        :param language: the language to assume in the context.
+        """
+        return self._dependencies.create_full_dependency_context(
+            self._module_set.get_language(language), self._local_paths, self._project_cache
+        )
 
     def get_config(self, name: str, schema: SchemaValidator = None, config_class: Optional[object] = None) -> Any:
         """
@@ -292,6 +353,51 @@ class Project(object):
             for key, value in config_data.items():
                 setattr(config, key, value)
         return config
+
+
+class ProjectCache(object):
+    """
+    Instances of this class hold a cache of project locations for a project.  Each
+    name is initially mapped to the directory for the project.  The first time the
+    project is requested, the project is actually loaded.
+    """
+    def __init__(self, paths: List[Path]):
+        """
+        A function to create an instance of a project cache.
+
+        :param paths: the list of paths to start with.
+        """
+        self._projects: Dict[str, Union[Path, Project]] = {path.name: path for path in paths}
+
+    @property
+    def names(self) -> KeysView:
+        """
+        A function that returns a view of the known project names.
+
+        :return: a key view of the known project locations.
+        """
+        return self._projects.keys()
+
+    def get_project(self, name: str) -> Optional[Project]:
+        """
+        A function that returns the named project.  If this is the first time the project
+        has been requested, it is loaded and cached.
+
+        :param name: the name of the desired project.
+        :return: the named project or ``None`` if we've never heard of the name.
+        """
+        if name in self._projects:
+            thing = self._projects[name]
+
+            # if this is the first time to access the project, load it and stash it away.
+            if isinstance(thing, Path):
+                thing = get_project(thing)
+                self._projects[name] = thing
+
+            # thing is now guaranteed to be a project.
+            return thing
+
+        return None
 
 
 def _fix_up_language_list(info: Dict[str, Union[str, Sequence[str]]]):

@@ -4,10 +4,9 @@ This file contains all the unit tests for our framework's task processing engine
 from pathlib import Path
 from unittest.mock import patch, MagicMock, call
 
-from builder.dependencies import Dependency
+from builder.models import Dependency, Task, Language
 from builder.engine import Engine
 from builder.project import Project
-from builder.task_module import TaskModule, Task
 from tests.test_support import validate_attributes
 
 
@@ -68,7 +67,7 @@ class TestEngine(object):
     def test_execute_tasks(self):
         project = Project.from_dir(Path('/path/to/project'))
         engine = Engine(project)
-        module = TaskModule(None, 'java')
+        module = Language(None, 'java')
         et = MagicMock()
         task1 = Task('task1', MagicMock())
         task2 = Task('task2', None)
@@ -92,7 +91,7 @@ class TestEngine(object):
         config = {'lib_target': 'library'}
         project = Project.from_dir(Path('/path/to/project'))
         engine = Engine(project)
-        module = TaskModule(None, 'java')
+        module = Language(None, 'java')
         mock_get_config = MagicMock()
 
         mock_get_config.return_value = config
@@ -121,7 +120,7 @@ class TestEngine(object):
     def test_format_args_no_args(self):
         project = Project.from_dir(Path('/path/to/project'))
         engine = Engine(project)
-        module = TaskModule(None, 'java')
+        module = Language(None, 'java')
         task = Task('myTask', func_no_args)
 
         # noinspection PyProtectedMember
@@ -133,7 +132,7 @@ class TestEngine(object):
     def test_format_args_default_args(self):
         project = Project.from_dir(Path('/path/to/project'))
         engine = Engine(project)
-        module = TaskModule(None, 'java')
+        module = Language(None, 'java')
         task = Task('myTask', func_default_args)
 
         # noinspection PyProtectedMember
@@ -154,7 +153,7 @@ class TestEngine(object):
         config = {'lib_target': 'library'}
         project = Project.from_dir(Path('/path/to/project'))
         engine = Engine(project)
-        module = TaskModule(None, 'java')
+        module = Language(None, 'java')
         task = Task('myTask', func_language_config)
         mock_get_config = MagicMock()
 
@@ -180,7 +179,7 @@ class TestEngine(object):
         config = {'lib_target': 'library'}
         project = Project.from_dir(Path('/path/to/project'))
         engine = Engine(project)
-        module = TaskModule(None, 'java')
+        module = Language(None, 'java')
         task = Task('myTask', func_task_config)
         mock_get_config = MagicMock()
 
@@ -203,49 +202,43 @@ class TestEngine(object):
         assert kwargs == {'task_config': config}
 
     def test_format_args_dependencies(self):
-        paths = [Path('/path/to/dep')]
         project = Project.from_dir(Path('/path/to/project'))
         engine = Engine(project)
-        module = TaskModule(None, 'java')
+        module = Language(None, 'java')
         task = Task('myTask', func_dependencies)
 
-        with patch('builder.engine.dependency_resolver') as mock_resolver:
-            mock_resolver.resolve.return_value = paths
+        module.resolver = MagicMock(return_value=None)
 
-            # noinspection PyProtectedMember
-            args, kwargs = engine._format_args(module, task)
+        # noinspection PyProtectedMember
+        args, kwargs = engine._format_args(module, task)
 
-        assert args == [paths]
+        assert args == [[]]
         assert kwargs == {}
 
         task.function = func_named_dependencies
 
-        with patch('builder.engine.dependency_resolver') as mock_resolver:
-            mock_resolver.resolve.return_value = paths
-
-            # noinspection PyProtectedMember
-            args, kwargs = engine._format_args(module, task)
+        # noinspection PyProtectedMember
+        args, kwargs = engine._format_args(module, task)
 
         assert args == []
-        assert kwargs == {'dependencies': paths}
+        assert kwargs == {'dependencies': []}
 
     def test_format_args_dependencies_not_accepted(self):
-        dependency = Dependency.given('repo', None, 'name', '1.2.3', None)
         project = Project.from_dir(Path('/path/to/project'))
+        dependency = Dependency('name', {
+            'location': 'remote',
+            'version': '1.2.3',
+            'scope': 'myTask'
+        })
+        project.get_dependencies()._dependencies = {'name': dependency}
         engine = Engine(project)
-        module = TaskModule(None, 'java')
+        module = Language(None, 'java')
         task = Task('myTask', func_no_args)
-        mock_get_dependencies = MagicMock()
-
-        mock_get_dependencies.return_value = [dependency]
-
-        project.get_dependencies().get_dependencies_for = mock_get_dependencies
 
         with patch('builder.engine.end') as mock_end:
             # noinspection PyProtectedMember
             _, _ = engine._format_args(module, task)
 
-        assert mock_get_dependencies.mock_calls == [call('myTask')]
         assert mock_end.mock_calls == [
             call('Dependencies were specified for task myTask but it does not accept dependencies.')
         ]

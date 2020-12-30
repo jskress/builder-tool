@@ -1,13 +1,15 @@
 """
 This file contains all the unit tests for our basic Java support.
 """
+import os
 from pathlib import Path
 from subprocess import CompletedProcess
 from typing import Tuple, Callable, Sequence
 
 from builder.java import JavaConfiguration, PackageConfiguration, get_javac_version
 # noinspection PyProtectedMember
-from builder.java.java import _add_verbose_options
+from builder.java.java import _add_verbose_options, _add_class_path, build_names
+from builder.models import Dependency, DependencyPathSet
 from builder.project import Project
 from tests.test_support import Options, FakeProcess, FakeProcessContext
 
@@ -69,6 +71,11 @@ class TestJavaConfig(object):
 
         self._verify_path_attr(directory, config, '_classes_dir', config.classes_dir, 'build', 'code_target')
 
+    def test_doc_dir(self, tmpdir):
+        directory, config, _ = self._make_config(tmpdir)
+
+        self._verify_path_attr(directory, config, '_doc_dir', config.doc_dir, 'build', 'code_doc')
+
     def test_dist_dir(self, tmpdir):
         directory, config, _ = self._make_config(tmpdir)
 
@@ -110,14 +117,22 @@ class TestJavaConfig(object):
 
         assert package_config.package_sources(java_config) is True
 
-    def test_sign_packages_with(self, tmpdir):
-        _, _, package_config = self._make_config(tmpdir)
+    def test_package_doc(self, tmpdir):
+        _, java_config, package_config = self._make_config(tmpdir)
 
-        assert package_config.sign_packages_with() is None
+        assert package_config.package_doc(java_config) is True
 
-        package_config.sign_with = 'sha1'
+        java_config.type = 'application'
 
-        assert package_config.sign_packages_with() == 'sha1'
+        assert package_config.package_doc(java_config) is False
+
+        package_config.doc = True
+
+        assert package_config.package_doc(java_config) is True
+
+        java_config.type = 'library'
+
+        assert package_config.package_doc(java_config) is True
 
 
 class TestGetJavaCVersion(object):
@@ -126,7 +141,7 @@ class TestGetJavaCVersion(object):
             process = FakeProcess(['javac', '-version'], stdout=f'Java {version}\n')
 
             with FakeProcessContext(process):
-                assert get_javac_version() == version
+                assert get_javac_version() == (version, 14)
 
     def test_javac_version_call_failure(self):
         # noinspection PyUnusedLocal
@@ -134,7 +149,7 @@ class TestGetJavaCVersion(object):
             raise FileNotFoundError('no javac!')
 
         with FakeProcessContext(failing_call):
-            assert get_javac_version() is None
+            assert get_javac_version() == (None, None)
 
 
 class TestVerboseOptions(object):
@@ -180,3 +195,36 @@ class TestVerboseOptions(object):
             _add_verbose_options(options, '-bogus1', '-bogus2')
 
         assert options == ['-verbose', '-bogus1', '-bogus2', '--flag', 'other-thing']
+
+
+class TestAddClassPath(object):
+    def test_add_class_path(self):
+        dep = Dependency('dep', {
+            'location': 'local',
+            'version': '4.5.6',
+            'scope': 'scope'
+        })
+        dps_list = [
+            DependencyPathSet(dep, Path('a.jar')),
+            DependencyPathSet(dep, Path('b.jar')),
+            DependencyPathSet(dep, Path('c.jar'))
+        ]
+        expected_class_path = os.pathsep.join(['a.jar', 'b.jar', 'c.jar'])
+        options = []
+
+        _add_class_path(options, dps_list)
+
+        assert options == ['--class-path', expected_class_path]
+
+
+class TestBuildNames(object):
+    def test_build_names(self):
+        dependency = Dependency('dep', {
+            'location': 'remote',
+            'version': '4.5.6',
+            'scope': 'scope'
+        })
+
+        assert build_names(dependency) == (
+            'https://repo1.maven.org/maven2/dep/dep/4.5.6', Path('dep'), 'dep-4.5.6'
+        )

@@ -1,0 +1,17 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "project",
+    "module": "project",
+    "version": "1.3.4",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "builder": {
+      "version": "0.3.0"
+    }
+  },
+  "variants": []
+}

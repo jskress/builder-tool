@@ -9,23 +9,22 @@ import click
 import pytest
 
 # noinspection PyProtectedMember
-from builder.task_module import _parse_task_ref, TaskModule, Task, _get_name_mappings, set_module_import, \
-    get_task_module, ModuleSet
+from builder.task_module import _parse_task_ref, _get_name_mappings, set_module_import, \
+    get_language_module, ModuleSet
+from builder.models import Task, Language
 from tests.test_support import FakeEcho, ExpectedEcho
 
 
-def _create_task_module(language: str, tasks: Optional[Sequence[Task]] = None) -> TaskModule:
-    class FakeModule(object):
-        tasks = []
-    module = FakeModule()
+def _create_language_module(language: str, tasks: Optional[Sequence[Task]] = None) -> Language:
+    result = Language({}, language)
     if tasks is not None:
-        module.tasks = tasks
-    return TaskModule(module, language)
+        result.tasks = tasks
+    return result
 
 
-def _create_module_with_tasks(language: str, task_names: Sequence[str]) -> TaskModule:
+def _create_language_with_tasks(language: str, task_names: Sequence[str]) -> Language:
     tasks = [Task(name, None) for name in task_names]
-    return _create_task_module(language, tasks)
+    return _create_language_module(language, tasks)
 
 
 class FakeImporter(object):
@@ -38,7 +37,7 @@ class FakeImporter(object):
         if self._fail:
             raise ModuleNotFoundError('boom!')
 
-        return _create_task_module(self._language)
+        return _create_language_module(self._language)
 
     def __enter__(self):
         set_module_import(self._test_import)
@@ -50,22 +49,22 @@ class FakeImporter(object):
 
 def _unambiguous():
     return {
-        'm1': _create_module_with_tasks('l1', ['t1', 't2']),
-        'm2': _create_module_with_tasks('l2', ['t3', 't4']),
+        'm1': _create_language_with_tasks('l1', ['t1', 't2']),
+        'm2': _create_language_with_tasks('l2', ['t3', 't4']),
     }
 
 
 def _ambiguity():
     return {
-        'm1': _create_module_with_tasks('l1', ['t1', 't2', 't3']),
-        'm2': _create_module_with_tasks('l2', ['t3', 't4', 't5']),
+        'm1': _create_language_with_tasks('l1', ['t1', 't2', 't3']),
+        'm2': _create_language_with_tasks('l2', ['t3', 't4', 't5']),
     }
 
 
 def _ambiguity_removed():
     return {
-        'm1': _create_module_with_tasks('l1', ['t1', 't2', 'm1::t3']),
-        'm2': _create_module_with_tasks('l2', ['m2::t3', 't4', 't5']),
+        'm1': _create_language_with_tasks('l1', ['t1', 't2', 'm1::t3']),
+        'm2': _create_language_with_tasks('l2', ['m2::t3', 't4', 't5']),
     }
 
 
@@ -75,7 +74,7 @@ def _encode(text, **kwargs):
 
 class TestTaskModule(object):
     def test_get_task(self):
-        module = _create_module_with_tasks('lang', ['task1', 'task2'])
+        module = _create_language_with_tasks('lang', ['task1', 'task2'])
         good_task = module.get_task('task1')
 
         assert good_task is not None
@@ -173,19 +172,19 @@ class TestModuleSet(object):
 class TestTaskModuleImport(object):
     def test_good_module_import(self):
         with FakeImporter('good'):
-            assert get_task_module('test') is not None
+            assert get_language_module('test') is not None
 
     def test_bad_module_import(self):
         with FakeImporter(fail=True):
             with FakeEcho.simple('Warning: Exception loading module for test: boom!', fg='yellow'):
-                assert get_task_module('test') is None
+                assert get_language_module('test') is None
 
 
 class TestNameMappings(object):
     def test_get_name_mappings_no_clash(self):
         modules = {
-            'm1': _create_module_with_tasks('l1', ['t1', 't2']),
-            'm2': _create_module_with_tasks('l2', ['t3', 't4']),
+            'm1': _create_language_with_tasks('l1', ['t1', 't2']),
+            'm2': _create_language_with_tasks('l2', ['t3', 't4']),
         }
         u, d = _get_name_mappings(modules)
         assert u == {'t1': 'm1', 't2': 'm1', 't3': 'm2', 't4': 'm2'}
@@ -193,8 +192,8 @@ class TestNameMappings(object):
 
     def test_get_name_mappings_with_clash(self):
         modules = {
-            'm1': _create_module_with_tasks('l1', ['t1', 't2', 't3']),
-            'm2': _create_module_with_tasks('l2', ['t3', 't4', 't5']),
+            'm1': _create_language_with_tasks('l1', ['t1', 't2', 't3']),
+            'm2': _create_language_with_tasks('l2', ['t3', 't4', 't5']),
         }
         u, d = _get_name_mappings(modules)
         assert u == {'t1': 'm1', 't2': 'm1', 't4': 'm2', 't5': 'm2'}

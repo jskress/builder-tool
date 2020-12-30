@@ -1,9 +1,9 @@
 """
 This file contains all the unit tests for our POM support.
 """
-from builder.dependencies import Dependency
+from builder.models import Dependency, DependencyContext, Language
 # noinspection PyProtectedMember
-from builder.java.pom import _get_pom_properties, _resolve_property, pom_to_dependencies
+from builder.java.pom import _get_pom_properties, _resolve_property, read_pom_for_dependencies
 from builder.java.xml_support import parse_xml_file, parse_xml_string
 from tests.test_support import get_test_path
 
@@ -71,30 +71,37 @@ class TestPOMPropertyResolve(object):
 class TestPOMToDependencies(object):
     @staticmethod
     def _parent_dependency():
-        return Dependency.given('repo', None, 'name', '1.0.1', 'compile')
+        return Dependency('name', {
+            'location': 'remote',
+            'version': '1.0.1',
+            'scope': 'compile'
+        })
 
-    def test_pom_to_dependencies_no_dependencies(self):
+    def test_read_pom_for_dependencies_no_dependencies(self):
         """Make sure we generate no dependencies when none exist."""
         pom_path = get_test_path('java/junit-2.pom.xml')
+        context = DependencyContext([], Language({}, 'lang'), [], None)
 
-        result = pom_to_dependencies(pom_path, self._parent_dependency())
+        read_pom_for_dependencies(pom_path, context, self._parent_dependency())
 
-        assert len(result) == 0
+        assert context.is_empty()
 
-    def test_pom_to_dependencies_with_dependencies(self):
+    def test_read_pom_for_dependencies_with_dependencies(self):
         """Make sure we generate proper dependency objects when dependencies exist."""
         pom_path = get_test_path('java/junit.pom.xml')
+        context = DependencyContext([], Language({}, 'lang'), [], None)
 
-        dependencies = pom_to_dependencies(pom_path, self._parent_dependency())
+        read_pom_for_dependencies(pom_path, context, self._parent_dependency())
 
-        assert len(dependencies) == 2
+        assert len(context._dependencies) == 2
 
         # Make sure parent dependency info is properly propagated.
-        for dependency in dependencies:
-            assert dependency.repo == 'repo'
+        for dependency in context._dependencies:
+            assert dependency.location == 'remote'
             assert dependency.scope == ['compile']
+            assert dependency.transient is True
 
-        dependencies = [repr(dependency) for dependency in dependencies]
+        dependencies = [repr(dependency) for dependency in context._dependencies]
 
         # And that we found the right stuff.
         assert dependencies == [

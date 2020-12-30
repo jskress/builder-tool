@@ -34,29 +34,29 @@ supported languages.
 Dependencies
 ------------
 
-The builder tool provides formal support for dependency fetching and caching.
-It maintains a local file cache for this.  The dependency concept is abstract
-at the tool level and requires support from a language for things to really work.
-This is due to the fact that each language has its own unique way of defining
-what a dependency actually is, in terms file naming and fetching.
+The builder tool provides formal support for dependencies, of which there are
+three types, ``remote``, ``local`` and ``project``.  Support of remote dependencies
+includes fetching and caching into a local file cache.  The dependency concept
+is abstract at the tool level and requires support from a language for things to
+really work.  This is because each language has its own unique way of defining
+what a dependency actually is, in terms file naming and fetching.  Resolved
+remote dependencies are also verified with digital signatures to verify transfer
+if reference signatures are available.
 
-A dependency comes from a repository which a language must make known to the
-tool.  The language's support provides the means to convert a dependency
-definition into a URL from which the build tool framework can then download
-the dependency and cache it.  Signature verification is fully supported to help
-guarantee the integrity of downloaded files.
-
-If a language supports the concept, the tool also allows for the notion of a
-meta-file which can contain nested (sometimes referred to as *transient*)
-dependencies.  For example, the Java language support understands the concept
-of POM files for this.  Such files are also downloaded, verified and cached
-as appropriate.
+When a language declares itself to the builder tool, it may include a *resolver*.
+This resolver is used to take a dependency and resolve it into a set of dependency
+files.  It may also include any needed transient dependencies which the tool
+will also resolve.  If the language supports it, base URL and directory information
+will be specified for remote dependency resolution.  It will also provide the
+means for taking a language configuration (from a project file) and resolving that
+to a path that may contain dependency files.  This is used to resolve project based
+dependencies.
 
 Projects
 --------
 
 The tool defines a project as nothing more than a directory with an optional
-``projects.yaml`` file in it.  Everything else, directory structure, required
+``project.yaml`` file in it.  Everything else, directory structure, required
 files, etc., is dependent on the languages your project is written in.
 
 A ``project.yaml`` file is a simple configuration file in (obviously) YAML
@@ -64,4 +64,4 @@ format.  Even though you *could* use JSON (as it's a proper subset of YAML)
 the file must still be named ``project.yaml``.
 
 See :ref:`Builder Tool Projects <projects>` for full details about what the
-``projects.yaml`` file can contain.
+``project.yaml`` file can contain.

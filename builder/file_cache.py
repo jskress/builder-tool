@@ -28,7 +28,7 @@ class FileCache(object):
         self._base_file_cache_path = root / '.builder'
         self._base_file_cache_path.mkdir(exist_ok=True)
 
-    def resolve_file(self, file_url: str, relative_path: Path, optional: bool = False) -> Optional[Path]:
+    def resolve_file(self, file_url: str, relative_path: Path) -> Optional[Path]:
         """
         A function that guarantees the given remote file exists in the cache.  If the file
         could not be downloaded, then ``None`` is returned.  Otherwise, the full path to the
@@ -40,21 +40,20 @@ class FileCache(object):
         :param file_url: the URL of the remote file.
         :param relative_path: the relative path where the file should be stored locally.  This
         will be relative to the file cache's root.
-        :param optional: a flag noting whether the file is optional or required.
         :return: the full local path to the file or ``None``.
         :raises ValueError: if we had a problem downloading the requested file.
         """
         try:
             full_path = self._base_file_cache_path / relative_path
             if global_options.force_remote_fetch() or not full_path.is_file():
-                if not self._download_file(file_url, full_path, optional):
+                if not self._download_file(file_url, full_path):
                     return None
         except requests.HTTPError as httpError:
             raise ValueError(f'Could not cache {relative_path}: {str(httpError)}')
         return full_path
 
     @staticmethod
-    def _download_file(url: str, full_path: Path, optional: bool) -> bool:
+    def _download_file(url: str, full_path: Path) -> bool:
         """
         A function for downloading a remote file to a local one.  If the remote file
         is not found and is optional, then ``False`` is returned.  If a problem occurs
@@ -63,10 +62,9 @@ class FileCache(object):
 
         :param url: the URL from which the remote file is to be downloaded.
         :param full_path: the full path to which the file will be downloaded.
-        :param optional: a flag noting whether the file is optional or required.
         :return: a flag noting whether or not the file was successfully downloaded.
         """
-        content_length, exists = FileCache._get_download_file_size(url, optional)
+        content_length, exists = FileCache._get_download_file_size(url)
         if not exists:
             return False
         response = requests.get(url, allow_redirects=True)
@@ -106,23 +104,20 @@ class FileCache(object):
         return label
 
     @staticmethod
-    def _get_download_file_size(url: str, optional: bool) -> Tuple[Optional[int], bool]:
+    def _get_download_file_size(url: str) -> Tuple[Optional[int], bool]:
         """
         A function to determine the file size, if possible, of a remote file.  We do this by
-        issuing an HTTP ``HEAD`` request on the URL so we only get the headers back.  If the
-        file is not optional and cannot be found, an exception is raised.
+        issuing an HTTP ``HEAD`` request on the URL so we only get the headers back.
 
         :param url: the URL to download a file from.
-        :param optional: a flag noting whether the file is optional or required.
         :return: a tuple where the first entry notes the length of the remote file.  If the
         remote file exists but its length cannot be determined, then this will be ``None``.
         The second entry in the tuple will be a boolean noting whether the file exists or not.
-        :raises HTTPError: if an HTTP problem occurred getting the file's content length.
         """
         # We'll do a HEAD first to make sure the remote file is there and find out how big
         # it is.
         response = requests.head(url, allow_redirects=True)
-        if optional and 400 <= response.status_code < 500:
+        if 400 <= response.status_code < 500:
             verbose_out(f'Could not download {url}: {response.status_code} {response.reason}')
             return None, False
         response.raise_for_status()

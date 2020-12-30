@@ -4,9 +4,8 @@ This library provides the core of the builder engine as a class.
 import inspect
 from typing import Sequence, Tuple, Any
 
-from builder.dependencies import dependency_resolver
 from builder.project import Project
-from builder.task_module import Task, TaskModule
+from builder.models import Task, Language
 from builder.utils import global_options, end, out, warn
 
 
@@ -44,7 +43,7 @@ class Engine(object):
         self._module_set.print_available_tasks()
         self._rc = 1
 
-    def _get_tasks_in_execution_order(self) -> Sequence[Tuple[TaskModule, Task]]:
+    def _get_tasks_in_execution_order(self) -> Sequence[Tuple[Language, Task]]:
         """
         A function to return a sequence of tuples, each containing a task to execute
         and the module to which it belongs.  If the ``--no-requires`` command line
@@ -60,7 +59,7 @@ class Engine(object):
         if global_options.independent_tasks():
             return tasks
 
-        def add_task(containing_module: TaskModule, new_task: Task):
+        def add_task(containing_module: Language, new_task: Task):
             if new_task.name not in task_names:
                 for required_task_name in new_task.require:
                     add_task(containing_module, containing_module.get_task(required_task_name))
@@ -75,7 +74,7 @@ class Engine(object):
 
         return full_task_list
 
-    def _execute_tasks(self, tasks: Sequence[Tuple[TaskModule, Task]]):
+    def _execute_tasks(self, tasks: Sequence[Tuple[Language, Task]]):
         """
         A function that executes the given list of tasks.  We note each task is "visited"
         but (obviously) only execute those for which a function exists.
@@ -87,7 +86,7 @@ class Engine(object):
             if task.function is not None:
                 self._execute_task(module, task)
 
-    def _execute_task(self, module: TaskModule, task: Task):
+    def _execute_task(self, module: Language, task: Task):
         """
         A function for executing a task.  This is nothing more than determining the
         proper arguments and then passing them to the task's function.
@@ -99,7 +98,7 @@ class Engine(object):
 
         task.function(*args, **kwargs)
 
-    def _format_args(self, module: TaskModule, task: Task):
+    def _format_args(self, module: Language, task: Task):
         """
         A function that determines the arguments, in their proper order, that are to be
         passed to a task's function.  Based on the function signature, they are classified
@@ -116,7 +115,9 @@ class Engine(object):
         :param task: the task for whose function we are to derive arguments.
         :return: a tuple containing the function's positional and keyword arguments.
         """
-        dependencies = self._project.get_dependencies().get_dependencies_for(task.name)
+        dependency_context = self._project.get_dependencies().create_dependency_context_for(
+            task.name, module, self._project.local_locations, self._project.project_cache
+        )
         dependencies_not_accepted = True
         signature = inspect.signature(task.function)
         args = []
@@ -135,17 +136,17 @@ class Engine(object):
             elif parameter.name == 'task_config':
                 store(parameter.kind, self._get_task_config(task))
             elif parameter.name == 'dependencies':
-                store(parameter.kind, dependency_resolver.resolve(module.language, dependencies))
+                store(parameter.kind, dependency_context.resolve())
                 dependencies_not_accepted = False
             else:
                 store(parameter.kind, parameter.default)
 
-        if len(dependencies) > 0 and dependencies_not_accepted:
+        if not dependency_context.is_empty() > 0 and dependencies_not_accepted:
             end(f'Dependencies were specified for task {task.name} but it does not accept dependencies.')
 
         return args, kwargs
 
-    def _get_language_config(self, module: TaskModule):
+    def _get_language_config(self, module: Language):
         """
         A function that looks up the configuration information, if any, for the given module
         from the current project.

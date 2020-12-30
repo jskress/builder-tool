@@ -44,8 +44,8 @@ a few of them that require a bit more information.
     field of the project file's ``info`` object.  This allows the use of language
     tasks on an ad-hoc basis, without requiring its physical reference in the
     ``project.yaml`` file.  This is most useful for things like synchronizing
-    dependency information from the ``project.yaml`` file to an IDE, say, or other
-    one-off tasks.
+    dependency information from the ``project.yaml`` file to an IDE, checking what the
+    version of a dependency is in a remote repository and other such one-off tasks.
 
 ``--verbose``
     Specifying this option enables more verbose output, both from the builder tool

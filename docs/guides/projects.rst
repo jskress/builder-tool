@@ -11,6 +11,14 @@ will ignore any document in the project file after the first one.  The object
 **must** have an ``info`` object and *may* have a ``dependencies`` object.  These
 two are the core of a project file.
 
+To support local directory and project based dependencies, the project file may
+contain a ``locations`` object.  The locations object may contain either or both
+the ``local`` and ``project`` keys.  Whichever ones are specified must be mapped
+to a list of directories.  Relative directories are resolved against the project
+root.  Each directory listed under ``local`` must directly contain the desired
+dependency files.  Each directory listed under ``project`` must represent another
+builder tool project (with or without its own ``project.yaml`` file).
+
 The project file may also contain a ``vars`` top-level object.  See :ref:`The var Object <variables>`
 below for more details about how variables work and what they're for.
 
@@ -19,10 +27,6 @@ object that bears the same name as the language and is used to specify any
 configuration that language can make use of.  Also, as supported by each language,
 a top-level object named the same as a task from that language may be present.  It
 too can be used to supply configuration information that is specific to that task.
-
-Finally, there may be top-level objects that specify configuration information for
-known repositories.  Such objects must also be named the same as what they
-configure.
 
 It's important to note that, wherever possible, the contents of the project file
 are validated with appropriate schemas.
@@ -65,12 +69,25 @@ The ``dependencies`` Object
 The ``dependencies`` object contains dependencies keyed by a simple name mapped to
 the definition of a dependency.  Each dependency may have these fields:
 
-``repo``
-    The type of the repository where this dependency lives.  Its value must be the
-    name of a repository type made known by a language.  The language may allow for
-    a configuration object at the top level of the ``project.yaml`` file keyed by
-    that name.  The allowed contents of that configuration information is defined by
-    the language that published support for the given repository type.
+``location``
+    The location of files the dependency represents.  Its value must be one of
+    ``remote``, ``local`` or ``project``.  This decides how a dependency is resolved
+    to a physical file.
+
+        ``remote``
+            For remote dependencies, the builder will cooperate with the language to
+            identify appropriate URLs, directory names and the like and caches the
+            actual files in a local cache.
+
+        ``local``
+            For local dependencies, dependent files will be searched in the directories
+            listed under the ``locations/local`` section of the project file.
+
+        ``project``
+            For project dependencies, the builder will cooperate with the language to
+            identify the appropriate subdirectory of the project to look in for
+            dependent files.  The dependent project must use the same language as the
+            one dependent on it.
 
 ``group``
     An optional group identifier for the dependency.  If this is not provided,
@@ -94,10 +111,10 @@ Here's an example ``dependencies`` block:
 
    dependencies:
        junit5:
-           repo: maven
+           location: remote
            group: org/junit/platform
            name: junit-platform-console-standalone
-           version: 1.6.0
+           version: 1.7.0
            scope: test
 
 .. _variables:
@@ -127,11 +144,11 @@ Here's an example ``dependencies`` block that uses a value from the ``vars`` blo
 .. code-block:: yaml
 
    vars:
-       junit_version: 1.6.0
+       junit_version: 1.7.0
 
    dependencies:
        junit5:
-           repo: maven
+           location: remote
            group: org/junit/platform
            name: junit-platform-console-standalone
            version: ${junit_version}

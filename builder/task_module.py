@@ -3,52 +3,20 @@ This library provides support around using a language module.
 """
 import importlib
 import re
-from typing import Tuple, Optional, Dict, Sequence, Callable, Any
+from typing import Tuple, Optional, Dict, Sequence, Callable, Any, List
 
 import click
+from builder.models import Task, Language
 
-from builder.schema_validator import SchemaValidator
-from builder.utils import find, warn, out
+from builder.utils import warn, out
 
-_task_name_pattern = re.compile(r'^(?:(\w+?)?::)?(\w+)$')
+_task_name_pattern = re.compile(r'^(?:(\w+?)?::)?(\w+(?:-\w+)*)$')
 _import_module = importlib.import_module
 ModuleImporter = Callable[[str], Any]
 
 
-class Task(object):
-    def __init__(self, name: str, function: Optional[Callable], require: Optional[Sequence[str]] = None,
-                 configuration_class=None, configuration_schema: Optional[SchemaValidator] = None,
-                 help_text: Optional[str] = None):
-        if require is None:
-            require = []
-        self.name = name
-        self.function = function
-        self.require = require
-        self.configuration_class = configuration_class
-        self.configuration_schema = configuration_schema
-        self.help_text = help_text
-
-
-class TaskModule(object):
-    def __init__(self, module, language: str):
-        self.language = language
-        self.configuration_class = getattr(module, 'configuration_class', None)
-        self.configuration_schema = getattr(module, 'configuration_schema', None)
-        self.tasks = getattr(module, 'tasks', None)
-
-    def get_task(self, name: str) -> Optional[Task]:
-        """
-        A function that returns the named task.  If there is no task that carries the
-        requested name, then ``None`` will be returned.
-
-        :param name: the name of the desired task.
-        :return: the requested task or ``None``.
-        """
-        return find(self.tasks, lambda task: task.name == name)
-
-
 class ModuleSet(object):
-    def __init__(self, modules: Dict[str, TaskModule]):
+    def __init__(self, modules: Dict[str, Language]):
         self._task_to_module = {}
         self._ambiguous = []
         self._modules = modules
@@ -68,7 +36,16 @@ class ModuleSet(object):
                 task.name = f'{module_name}::{task_name}'
         self._ambiguous = list(duplicates.keys())
 
-    def get_task(self, task_ref: str) -> Tuple[TaskModule, Task]:
+    def get_language(self, language: str) -> Optional[Language]:
+        """
+        A function that returns the named language definition.
+
+        :param language: the desired language definition.
+        :return: the named language or ``None``.
+        """
+        return self._modules[language] if language in self._modules else None
+
+    def get_task(self, task_ref: str) -> Tuple[Language, Task]:
         """
         A function that uses a task reference to look up the module and task that it represents.
         If the reference cannot be resolved to a module/task pair, an exception is raised.
@@ -108,7 +85,7 @@ class ModuleSet(object):
             out('', respect_quiet=False)
 
 
-def get_task_module(language: str) -> Optional[TaskModule]:
+def get_language_module(language: str) -> Optional[Language]:
     """
     A function for loading the support module for a language.  This isn't considered
     fatal since a task error will likely occur.  This gives the end user the most
@@ -120,13 +97,13 @@ def get_task_module(language: str) -> Optional[TaskModule]:
     :return: the loaded task module or ``None``.
     """
     try:
-        return TaskModule(_import_module(f'builder.{language}'), language)
+        return Language(_import_module(f'builder.{language}'), language)
     except ModuleNotFoundError as exception:
         warn(f'Exception loading module for {language}: {str(exception)}')
         return None
 
 
-def _get_name_mappings(modules: Dict[str, TaskModule]) -> Tuple[Dict[str, str], Dict[str, Sequence[str]]]:
+def _get_name_mappings(modules: Dict[str, Language]) -> Tuple[Dict[str, str], Dict[str, Sequence[str]]]:
     """
     A function to build maps keyed by task name.  The first map is of task names which are
     unique across all known languages.  Each task name maps to the name of the language that
@@ -137,12 +114,12 @@ def _get_name_mappings(modules: Dict[str, TaskModule]) -> Tuple[Dict[str, str], 
     :param modules: a dictionary of task modules, keyed by language.
     :return: the unique tasks map and the duplicate tasks map.
     """
-    task_names = {}
-    for module_name, module in modules.items():
-        for task in module.tasks:
+    task_names: Dict[str, List[str]] = {}
+    for language_name, language in modules.items():
+        for task in language.tasks:
             if task.name not in task_names:
                 task_names[task.name] = []
-            task_names[task.name].append(module_name)
+            task_names[task.name].append(language_name)
     duplicate_names = {name: sources for name, sources in task_names.items() if len(sources) > 1}
     unique_names = {name: sources[0] for name, sources in task_names.items() if len(sources) == 1}
 
