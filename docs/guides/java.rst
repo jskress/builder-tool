@@ -50,6 +50,21 @@ Language Tasks
 
 The Java language support makes the following tasks available:
 
+``init``
+    Initializes project files and directory structure for a Java project.  It assumes that
+    IntelliJ is the IDE of choice and initializes those files as well.  The task will consume
+    three variables (use the ``--set`` CLI option):
+
+    ``title``
+        The title for the project.
+
+    ``version``
+        The initial version number for the project.
+
+    ``package``
+        The top-level Java package to use.  This will produce the appropriate directory
+        structure.
+
 ``clean``
     Removes the build and distribution directories, if they exist.  It is not an error
     if they don't.
@@ -88,6 +103,10 @@ The Java language support makes the following tasks available:
     this is resolved using the ``maven-metadata.xml`` file (downloaded straight from
     Maven) for the dependency.  For local and project dependencies, the relevant
     directories are scanned for matching jar files.
+
+``sync-ij``
+    Takes all defined dependencies from ``project.yaml`` and notes them in the proper
+    IntelliJ project files.
 
 Language Configuration
 ----------------------

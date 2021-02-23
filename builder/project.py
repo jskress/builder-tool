@@ -170,6 +170,13 @@ class Project(object):
         return self._info['name']
 
     @property
+    def directory(self) -> Path:
+        """
+        A read-only property that returns the root directory for the project.
+        """
+        return self._directory
+
+    @property
     def version(self) -> str:
         """
         A read-only property that returns the version of the project.
@@ -293,11 +300,15 @@ class Project(object):
         """
         if name not in self._config_cache:
             config = self._content[name] if name in self._content else {}
+
             if schema is not None:
                 if not schema.validate(config, name):
                     raise ValueError(f'Configuration for "{name}" is not valid: {schema.error}')
+
             if config_class is not None:
-                config = Project._create_config_object(config_class, config)
+                with self:
+                    config = Project._create_config_object(config_class, config)
+
             self._config_cache[name] = config
         return self._config_cache[name]
 
@@ -353,6 +364,20 @@ class Project(object):
             for key, value in config_data.items():
                 setattr(config, key, value)
         return config
+
+    def __enter__(self):
+        """
+        This allows a project to be used with the ``with`` statement to temporarily become
+        the current project in the set of global options.  Note that this cannot be nested.
+        """
+        self._hold_project = global_options.project()
+        global_options.set_project(self)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        This restores the original current project in the global options.
+        """
+        global_options.set_project(self._hold_project)
 
 
 class ProjectCache(object):

@@ -17,7 +17,7 @@ class Task(object):
     """
     def __init__(self, name: str, function: Optional[Callable], require: Optional[Sequence[str]] = None,
                  configuration_class: Optional[type] = None, configuration_schema: Optional[SchemaValidator] = None,
-                 help_text: Optional[str] = None):
+                 needs_all_dependencies: bool = False, help_text: Optional[str] = None):
         """
         A function to create an instance of the ``Task`` class.
 
@@ -27,6 +27,9 @@ class Task(object):
         :param configuration_class: a class that represents the configuration for the task.
         :param configuration_schema: a validator to use in validating the configuration for
         the task.
+        :param needs_all_dependencies: a flag noting whether the task is more of a housekeeping
+        sort of thing and wants all project dependencies passed to it.  This allows it to receive
+        all dependencies without having to be explicitly listed in the scope of each dependency.
         :param help_text: the help text to show for this task.
         """
         self.name = name
@@ -34,6 +37,7 @@ class Task(object):
         self.require = [] if require is None else require
         self.configuration_class = configuration_class
         self.configuration_schema = configuration_schema
+        self.needs_all_dependencies = needs_all_dependencies
         self.help_text = help_text
 
 
@@ -262,8 +266,22 @@ class DependencyPathSet(object):
         This function is used to add a secondary path to the dependency file set.
         Once a secondary file has been stored in this way, it is accessible by
         the key as an attribute name.
+
+        :param key: the key by which the secondary path should be known.
+        :param path: the secondary path to remember.
         """
         self._secondary_paths[key] = path
+
+    def has_secondary_path(self, key: str) -> bool:
+        """
+        A function that returns whether this path set contains a secondary file known by
+        the given key.
+
+        :param key: the key to test.
+        :return: ``True`` if we have a secondary file known by the given key or ``False``
+        if not.
+        """
+        return key in self._secondary_paths
 
     def __getattr__(self, key):
         if key not in self._secondary_paths:
@@ -272,7 +290,7 @@ class DependencyPathSet(object):
 
 
 ResolveDependencyFunction = Callable[['DependencyContext', Dependency], Optional[DependencyPathSet]]
-ResolveProjectToPathFunction = Callable[[Any], Optional[Path]]
+ProjectConfigToPathFunction = Callable[[Any], Optional[Path]]
 
 
 class Language(object):
@@ -282,7 +300,7 @@ class Language(object):
         self.configuration_schema: Optional[SchemaValidator] = None
         self.tasks: Sequence[Task] = []
         self.resolver: Optional[ResolveDependencyFunction] = None
-        self.project_to_path: Optional[ResolveProjectToPathFunction] = None
+        self.project_as_dist_path: Optional[ProjectConfigToPathFunction] = None
 
         function = getattr(module, 'define_language', None)
 
@@ -323,6 +341,20 @@ class DependencyContext(object):
         self._directory_path: Optional[Path] = None
         self._local_paths = local_paths
         self._project_cache = project_cache
+
+    def split(self) -> List['DependencyContext']:
+        """
+        A function that creates copies of this context, one copy for each dependency.  In
+        other words, each resulting context will have one, and only one, dependency in it.
+        This allows for easily capturing all the transient dependency information for a
+        dependency.
+
+        :return: a list of contexts, one for each of our own dependencies.
+        """
+        return [
+            DependencyContext([dependency], self._language, self._local_paths, self._project_cache)
+            for dependency in self._dependencies
+        ]
 
     @property
     def dependencies(self) -> List[Dependency]:
@@ -448,16 +480,16 @@ class DependencyContext(object):
         """
         result: List[Path] = []
 
-        if self._language.project_to_path:
+        if self._language.project_as_dist_path:
             for project_name in self._project_cache.names:
-                path = self._get_language_config(project_name)
+                path = self._get_publishing_directory(project_name)
 
                 if path:
                     result.append(path)
 
         return result
 
-    def _get_language_config(self, project_name: str) -> Optional[Path]:
+    def _get_publishing_directory(self, project_name: str) -> Optional[Path]:
         """
         A helper function to resolve a project name to its project and then to a publishing
         directory.
@@ -469,7 +501,9 @@ class DependencyContext(object):
         config = project.get_config(
             self._language.language, self._language.configuration_schema, self._language.configuration_class
         )
-        return self._language.project_to_path(config)
+
+        with project:
+            return self._language.project_as_dist_path(config)
 
     def _fetch_file(self, dependency: Dependency, name: str) -> Optional[Path]:
         """
@@ -523,14 +557,14 @@ class DependencyContext(object):
         :param name: the name of the desired file.
         :return: the absolute path to the local file or ``None`` if it doesn't exist.
         """
-        if not self._language.project_to_path:
+        if not self._language.project_as_dist_path:
             raise ValueError(
                 f'The language, {self._language.language}, does not provide a means of resolving project-based '
                 f'dependencies.'
             )
 
         for project_name in self._project_cache.names:
-            path = self._get_language_config(project_name)
+            path = self._get_publishing_directory(project_name)
 
             if path:
                 path = path / name

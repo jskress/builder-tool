@@ -1,14 +1,16 @@
 from builder.schema import BooleanSchema, ObjectSchema, StringSchema
 from builder.schema_validator import SchemaValidator
+from .sync_ij import sync_dependencies_to_ij
 from ..models import Task, Language
 from builder.utils import end
 
 from .java import JavaConfiguration, get_javac_version, java_clean, java_test, java_version, PackageConfiguration
+from .init import init_java_project
 from .version_check import check_dependency_versions
 from .compile import java_compile
 from .doc import java_doc
 from .package import java_package
-from .resolver import resolve, project_to_lib_dir
+from .resolver import resolve, project_to_dist_dir
 
 _configuration_schema = ObjectSchema()\
     .properties(
@@ -44,6 +46,7 @@ def define_language(language: Language):
     language.configuration_class = configuration_class
     language.configuration_schema = configuration_schema
     language.tasks = [
+        Task('init', init_java_project, help_text='Initializes things for a new project, including IntelliJ files.'),
         Task('clean', java_clean, help_text='Removes build artifacts from other Java tasks.'),
         Task('compile', java_compile, help_text='Compiles Java source code for the project.'),
         Task('test', java_test, require=['compile'], help_text='Tests the compiled Java code for the project.'),
@@ -53,10 +56,12 @@ def define_language(language: Language):
              help_text='Packages artifacts for the project.'),
         Task('build', None, require=['clean', 'test', 'doc', 'package'], help_text='Build everything in the project.'),
         Task('check-versions', check_dependency_versions,
-             help_text='Verifies the version of each dependency in the project.')
+             help_text='Verifies the version of each dependency in the project.'),
+        Task('sync-ij', sync_dependencies_to_ij,
+             help_text='Updates IntelliJ project files to match dependencies in project.yaml.')
     ]
     language.resolver = resolve
-    language.project_to_path = project_to_lib_dir
+    language.project_as_dist_path = project_to_dist_dir
 
 
 if java_version is None:

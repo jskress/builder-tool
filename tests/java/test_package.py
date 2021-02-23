@@ -319,7 +319,7 @@ class TestJavaPackage(object):
         task_config.sources = False
         task_config.doc = False
 
-        jar_file = java_config.library_dist_dir(ensure=True) / 'test-1.2.3.jar'
+        jar_file = java_config.library_dist_dir(ensure=True) / project.name / 'test-1.2.3.jar'
         directory = java_config.classes_dir()
         expected = [
             'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', str(directory), '.'
@@ -344,7 +344,7 @@ class TestJavaPackage(object):
 
         task_config.doc = False
 
-        jar_file = config.library_dist_dir(ensure=True) / 'test-1.2.3.jar'
+        jar_file = config.library_dist_dir(ensure=True) / project.name / 'test-1.2.3.jar'
         directory = config.classes_dir()
         code_dir = config.code_dir()
         expected = [
@@ -373,8 +373,8 @@ class TestJavaPackage(object):
 
         task_config.doc = False
 
-        jar_file = config.library_dist_dir(ensure=True) / 'test-1.2.3.jar'
-        sources_jar_file = config.library_dist_dir() / 'test-1.2.3-sources.jar'
+        jar_file = config.library_dist_dir(ensure=True) / project.name / 'test-1.2.3.jar'
+        sources_jar_file = config.library_dist_dir() / project.name / 'test-1.2.3-sources.jar'
         directory = config.classes_dir()
         code_dir = config.code_dir(ensure=True)
         expected_jar = [
@@ -403,22 +403,17 @@ class TestJavaPackage(object):
 
         task_config.sources = False
 
-        jar_file = config.library_dist_dir() / 'test-1.2.3.jar'
-        directory = config.classes_dir()
+        _ = config.classes_dir(ensure=True)
         doc_dir = config.doc_dir()
-        expected = [
-            'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', str(directory), '.'
-        ]
 
-        with FakeProcessContext(FakeProcess(expected)):
-            with pytest.raises(ValueError) as info:
-                with Options(project):
-                    with patch('builder.java.package.sign_path') as mock_signer:
-                        mock_signer.return_value = {}
+        with pytest.raises(ValueError) as info:
+            with Options(project):
+                with patch('builder.java.package.sign_path') as mock_signer:
+                    mock_signer.return_value = {}
 
-                        java_package(config, task_config, [])
+                    java_package(config, task_config, [])
 
-            assert info.value.args[0] == f'Cannot build a JavaDoc archive since {doc_dir} does not exist.'
+        assert info.value.args[0] == f'Cannot build a JavaDoc archive since {doc_dir} does not exist.'
 
     def test_javadoc_with_dir(self, tmpdir):
         project_dir = Path(str(tmpdir))
@@ -430,8 +425,8 @@ class TestJavaPackage(object):
 
         task_config.sources = False
 
-        jar_file = config.library_dist_dir(ensure=True) / 'test-1.2.3.jar'
-        doc_jar_file = config.library_dist_dir() / 'test-1.2.3-javadoc.jar'
+        jar_file = config.library_dist_dir(ensure=True) / project.name / 'test-1.2.3.jar'
+        doc_jar_file = config.library_dist_dir() / project.name / 'test-1.2.3-javadoc.jar'
         directory = config.classes_dir()
         doc_dir = config.doc_dir(ensure=True)
         expected_jar = [

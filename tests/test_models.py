@@ -476,13 +476,13 @@ class TestDependencyContext(object):
         mock_cache.get_project.return_value = mock_project
         language = Language({}, 'lang')
 
-        language.project_to_path = MagicMock(return_value=None)
+        language.project_as_dist_path = MagicMock(return_value=None)
 
         context = DependencyContext([], language, [], mock_cache)
 
         assert context._handle_project_resolution(name) is None
 
-        language.project_to_path = MagicMock(return_value=directory)
+        language.project_as_dist_path = MagicMock(return_value=directory)
 
         assert context._handle_project_resolution(name) is None
 

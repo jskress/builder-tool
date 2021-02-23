@@ -15,7 +15,7 @@ API_ELEMENTS = 'apiElements'
 RUNTIME_ELEMENTS = 'runtimeElements'
 SHADOW_RUNTIME_ELEMENTS = 'shadowRuntimeElements'
 JAVADOC_ELEMENTS = 'javadocElements'
-SOURCE_ELEMENTS = 'sourceElements'
+SOURCE_ELEMENTS = 'sourcesElements'
 _attr_prefix = 'org.gradle.'
 
 

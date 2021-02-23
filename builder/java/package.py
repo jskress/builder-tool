@@ -235,9 +235,12 @@ def java_package(language_config: JavaConfiguration, task_config: PackageConfigu
     code_dir, classes_dir, doc_dir, resources_dir, output_dir = _get_packaging_dirs(language_config)
     entry_point = None if language_config.type != 'application' else \
         _find_entry_point(classes_dir, task_config.get_entry_point())
+    output_dir = output_dir / project.name
     manifest = _create_manifest(project.version, project.description)
     jar_file = output_dir / f'{project.name}-{project.version}.jar'
     module_data = _create_module_data()
+
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     signatures = _run_packager(manifest, entry_point, jar_file, classes_dir, resources_dir)
 

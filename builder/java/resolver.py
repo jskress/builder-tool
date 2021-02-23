@@ -9,26 +9,26 @@ from builder.models import Dependency, DependencyContext, DependencyPathSet
 from builder.java import JavaConfiguration
 from builder.java.modules import ModuleData, API_ELEMENTS, SOURCE_ELEMENTS, JAVADOC_ELEMENTS
 from builder.java.pom import read_pom_for_dependencies
+from builder.utils import global_options
 
 
-def project_to_lib_dir(configuration: JavaConfiguration) -> Optional[Path]:
+def project_to_dist_dir(configuration: JavaConfiguration) -> Optional[Path]:
     """
-    a function that returns the primary dependency directory for the given configuration.
-    For Java, this means the library distribution directory.  This is used in resolving
-    project dependencies.
+    A function that returns the primary library distribution directory for the given
+    configuration.  This is used when resolving project dependencies.
 
     :param configuration: the configuration to get dependency directory for.
     :return: the configuration's library distribution directory.
     """
-    return configuration.library_dist_dir()
+    return configuration.library_dist_dir() / global_options.project().name
 
 
-def _try_for_variant(context: DependencyContext, dependency: Dependency, module_data: ModuleData, name: str,
-                     key: str, path_set: DependencyPathSet):
+def _try_for_variant(context: DependencyContext, dependency: Dependency, module_data: ModuleData, key: str,
+                     path_set: DependencyPathSet):
     """
     A function that attempts to load the asset from the named variant.
     """
-    variant = module_data.get_variant(name)
+    variant = module_data.get_variant(key)
 
     if variant:
         variant_file = variant.files[0]
@@ -67,8 +67,8 @@ def _use_module_resolution(context: DependencyContext, dependency: Dependency, m
     # Now, let's create and load up our result:
     result = DependencyPathSet(dependency, jar_file)
 
-    _try_for_variant(context, dependency, module_data, 'sources', SOURCE_ELEMENTS, result)
-    _try_for_variant(context, dependency, module_data, 'javadoc', JAVADOC_ELEMENTS, result)
+    _try_for_variant(context, dependency, module_data, SOURCE_ELEMENTS, result)
+    _try_for_variant(context, dependency, module_data, JAVADOC_ELEMENTS, result)
 
     return result
 

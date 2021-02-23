@@ -337,7 +337,7 @@ def build_names(dependency: Dependency, version_in_url: bool = True) -> Tuple[st
     in the URL we build.
     :return: a tuple containing an appropriate file container and a base file name.
     """
-    group = dependency.group
+    group = dependency.group.replace('.', '/')
     name = dependency.name
     version = dependency.version
     directory_url = f'https://repo1.maven.org/maven2/{group}/{name}'
