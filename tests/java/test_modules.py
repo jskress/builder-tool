@@ -363,7 +363,7 @@ class TestModuleData(object):
             },
             "createdBy": {
                 "builder": {
-                    "version": "0.3.0"
+                    "version": VERSION
                 }
             },
             "variants": []

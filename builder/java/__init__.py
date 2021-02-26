@@ -4,13 +4,15 @@ from .sync_ij import sync_dependencies_to_ij
 from ..models import Task, Language
 from builder.utils import end
 
-from .java import JavaConfiguration, get_javac_version, java_clean, java_test, java_version, PackageConfiguration
+from .java import JavaConfiguration, get_javac_version, java_clean, java_version, PackageConfiguration, \
+    TestingConfiguration
 from .init import init_java_project
 from .version_check import check_dependency_versions
 from .compile import java_compile
 from .doc import java_doc
 from .package import java_package
 from .resolver import resolve, project_to_dist_dir
+from .test import compile_tests, run_tests
 
 _configuration_schema = ObjectSchema()\
     .properties(
@@ -22,11 +24,21 @@ _configuration_schema = ObjectSchema()\
         code_target=StringSchema().min_length(1).default('code/classes'),
         code_doc=StringSchema().min_length(1).default('code/javadoc'),
         tests_source=StringSchema().min_length(1).default('tests'),
-        tests_resources=StringSchema().min_length(1).default('test_resources'),
+        test_resources=StringSchema().min_length(1).default('test_resources'),
         tests_target=StringSchema().min_length(1).default('tests/classes'),
         dist=StringSchema().min_length(1).default('dist'),
         app_target=StringSchema().min_length(1).default('app'),
         lib_target=StringSchema().min_length(1).default('lib')
+    )\
+    .additional_properties(False)
+
+_test_configuration_schema = ObjectSchema()\
+    .properties(
+        test_executor=StringSchema().min_length(1),
+        coverage_agent=StringSchema().min_length(1),
+        coverage_reporter=StringSchema().min_length(1),
+        test_reports=StringSchema(),
+        coverage_reports=StringSchema()
     )\
     .additional_properties(False)
 
@@ -49,7 +61,10 @@ def define_language(language: Language):
         Task('init', init_java_project, help_text='Initializes things for a new project, including IntelliJ files.'),
         Task('clean', java_clean, help_text='Removes build artifacts from other Java tasks.'),
         Task('compile', java_compile, help_text='Compiles Java source code for the project.'),
-        Task('test', java_test, require=['compile'], help_text='Tests the compiled Java code for the project.'),
+        Task('compile-tests', compile_tests, require=['compile'], help_text='Compiles any unit tests for the project.'),
+        Task('test', run_tests, require=['compile-tests'], configuration_class=TestingConfiguration,
+             configuration_schema=SchemaValidator(schema=_test_configuration_schema),
+             help_text='Executes any unit tests for the project.'),
         Task('doc', java_doc, help_text='Produces javadoc documentation from the Java source in the project.'),
         Task('package', java_package, require=['test'], configuration_class=PackageConfiguration,
              configuration_schema=SchemaValidator(schema=_package_configuration_schema),

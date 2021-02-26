@@ -61,8 +61,9 @@ def _use_module_resolution(context: DependencyContext, dependency: Dependency, m
         return None
 
     # Ok, let's process any dependencies that may be involved.
-    for transient_dependency in variant.dependencies:
-        context.add_dependency(transient_dependency.as_dependency(dependency))
+    if not dependency.ignore_transients:
+        for transient_dependency in variant.dependencies:
+            context.add_dependency(transient_dependency.as_dependency(dependency))
 
     # Now, let's create and load up our result:
     result = DependencyPathSet(dependency, jar_file)
@@ -92,17 +93,18 @@ def _try_to_add_secondary_path(context: DependencyContext, dependency: Dependenc
         path_set.add_secondary_path(key, path)
 
 
-def _use_pom_resolution(context: DependencyContext, dependency: Dependency, base_name: str) \
+def _use_pom_resolution(context: DependencyContext, dependency: Dependency, classified_name: str, base_name: str) \
         -> Optional[DependencyPathSet]:
     """
     A function that resolves Java dependencies using POM files (the old way).
 
     :param context: the current dependency context in play.
     :param dependency: the dependency we are to resolve.
+    :param classified_name: the classified base name for the main asset.
     :param base_name: the base name for file assets.
     :return: the appropriate dependency path set or ``None``.
     """
-    jar_file = context.to_local_path(dependency, f'{base_name}.jar')
+    jar_file = context.to_local_path(dependency, f'{classified_name}.jar')
 
     if not jar_file:
         return None
@@ -111,7 +113,7 @@ def _use_pom_resolution(context: DependencyContext, dependency: Dependency, base
     # First, let's see if there's a POM file that can tell us about dependencies.
     pom_file = context.to_local_path(dependency, f'{base_name}.pom')
 
-    if pom_file:
+    if pom_file and not dependency.ignore_transients:
         read_pom_for_dependencies(pom_file, context, dependency)
 
     # Now, let's create and load up our result:
@@ -131,11 +133,11 @@ def resolve(context: DependencyContext, dependency: Dependency) -> Optional[Depe
     :param dependency: the dependency we are to resolve.
     :return: the appropriate dependency path set or ``None``.
     """
-    directory_url, directory_path, base_name = build_names(dependency)
+    directory_url, directory_path, classified_name, base_name = build_names(dependency)
 
     context.set_remote_info(directory_url, directory_path)
 
     module_path = context.to_local_path(dependency, f'{base_name}.module')
 
     return _use_module_resolution(context, dependency, module_path) if module_path else \
-        _use_pom_resolution(context, dependency, base_name)
+        _use_pom_resolution(context, dependency, classified_name, base_name)

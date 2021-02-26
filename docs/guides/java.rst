@@ -74,11 +74,15 @@ The Java language support makes the following tasks available:
     specify ``compile`` in their scope will include those dependencies in the
     compilation class path.
 
+``compile-tests``
+    Compiles any unit tests in the project's source code directory.  Any dependencies
+    that specify ``compile-tests`` in their scope will be included in the compilation
+    class path.  The ``compile`` task is a prerequisite for this task.
+
 ``test``
-    Compiles the code in the project's test code directory and executes the tests.  Any
-    dependencies that specify ``test`` in their scope will include those dependencies in
-    both the test compilation and execution class paths.  The ``compile`` task is a
-    prerequisite for this task.
+    Executes the compiled unit tests in the project.  Any dependencies that specify
+    ``test`` in their scope will be included in the test execution class path.  The
+    ``compile-tests`` task is a prerequisite for this task.
 
 ``doc``
     Runs ``javadoc`` against all the sources in the project's source code directory.  You
@@ -176,6 +180,43 @@ The Java language configuration may contain these fields:
     ``library``.  The default is ``lib``.
 
 .. _package-task-conf:
+
+``test`` Task Configuration
+------------------------------
+
+The ``test`` task configuration may contain these fields:
+
+``test-executor``
+    The symbolic name for the command line tool to use to run unit tests.  Currently,
+    ``junit5`` is the only supported value.  It is the default.  For this to work,
+    there must also be a dependency defined in the project that is also called ``junit5``
+    which must resolve to the JUnit5 standalone command line tool.
+
+``coverage-agent``
+    The symbolic name for the tool that will be used as a JVM agent for capturing
+    code coverage as tests are executed.  Currently, ``jacoco`` is the only supported
+    value.  It is the default.  For this to work, there must also be a dependency
+    defined in the project that is also called ``jacoco`` which must resolve to the
+    JaCoCo agent.  Set this to ``null`` to disable code coverage completely.
+
+``coverage-reporter``
+    The symbolic name for the command line tool that will be used to convert captured
+    code coverage information into a report.  Currently, ``jacoco-cli`` is the only
+    supported value.  It is the default.  For this to work, there must also be a
+    dependency defined in the project that is also called ``jacoco-cli`` which must
+    resolve to to the no-dependencies JaCoCo command line tool.  Set this to ``null``
+    to disable code coverage completely.
+
+``test-reports``
+    The relative directory where test result files will be written.  This is ``null``
+    by default, thus disabling the output portion of test execution.  The directory
+    is taken as relative to the ``build`` field at the language level.  If you want
+    test result XML files, the value of ``reports/tests`` is suggested.
+
+``coverage-reports``
+    The relative directory where coverage capture and report files will be written.
+    The default value is ``reports/coverage``.  Set this to ``null`` to disable code
+    coverage completely.
 
 ``package`` Task Configuration
 ------------------------------

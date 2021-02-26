@@ -16,13 +16,8 @@ def init_java_project(language_config: JavaConfiguration):
     _create_project_yaml(project)
     create_ij_project_file(language_config, ij_project)
     _create_directory_tree(language_config)
-
-    idea = project.project_dir(Path('.idea'), ensure=True)
-
-    project.project_dir(idea / 'libraries', ensure=True)
-
-    _create_misc_xml(idea)
-    _create_modules_xml(idea, project.name)
+    _create_misc_xml(ij_project)
+    _create_modules_xml(ij_project, project.name)
 
     ij_project.save()
 

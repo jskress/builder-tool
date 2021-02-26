@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List
 
 from builder.java import JavaConfiguration
-from builder.java.java import _add_verbose_options, _add_class_path
+from builder.java.java import _add_verbose_options, add_class_path
 from builder.models import DependencyPathSet
 from builder.utils import checked_run, global_options
 
@@ -42,7 +42,7 @@ def java_doc(language_config: JavaConfiguration, dependencies: List[DependencyPa
     else:
         _add_verbose_options(options)
 
-    _add_class_path(options, dependencies)
+    add_class_path(options, dependencies)
 
     options.extend(['-d', str(doc_dir), '--source-path', str(code_dir)])
 

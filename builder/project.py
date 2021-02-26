@@ -1,13 +1,12 @@
 """
 This library provides an object that represents a project.
 """
-from collections.abc import KeysView
 from pathlib import Path
 from typing import Sequence, Optional, Dict, Union, Any, MutableMapping, Mapping, List
 
 import yaml
 
-from builder.models import DependencySet, DependencyContext
+from builder.models import DependencySet, DependencyContext, dependency_schema
 from builder.schema import ArraySchema, ObjectSchema, OneOfSchema, StringSchema
 from builder.schema_validator import SchemaValidator
 from builder.task_module import get_language_module, ModuleSet
@@ -27,20 +26,7 @@ _schema = ObjectSchema() \
             )
             .additional_properties(False),
         dependencies=ObjectSchema()
-            .additional_properties(ObjectSchema()
-                .properties(
-                    location=StringSchema().enum('remote', 'local', 'project'),
-                    group=StringSchema().min_length(1),
-                    name=StringSchema().min_length(1),
-                    version=StringSchema().format("semver"),
-                    scope=OneOfSchema(
-                        StringSchema().min_length(1),
-                        ArraySchema().items(StringSchema().min_length(1))
-                    )
-                )
-                .required('location', 'version', 'scope')
-                .additional_properties(False)
-            ),
+            .additional_properties(dependency_schema),
         vars=ObjectSchema().additional_properties(StringSchema().min_length(1)),
         locations=ObjectSchema()
             .properties(
@@ -273,6 +259,7 @@ class Project(object):
         such as dependency version checking.
 
         :param language: the language to assume in the context.
+        :return: a context containing all our dependencies.
         """
         return self._dependencies.create_full_dependency_context(
             self._module_set.get_language(language), self._local_paths, self._project_cache
@@ -382,9 +369,9 @@ class Project(object):
 
 class ProjectCache(object):
     """
-    Instances of this class hold a cache of project locations for a project.  Each
-    name is initially mapped to the directory for the project.  The first time the
-    project is requested, the project is actually loaded.
+    Instances of this class hold a cache of project locations for a project.  Each path
+    in the provided list should represent a directory in which a project directory may
+    be found (thus allowing one directory to hold multiple projects).
     """
     def __init__(self, paths: List[Path]):
         """
@@ -392,16 +379,8 @@ class ProjectCache(object):
 
         :param paths: the list of paths to start with.
         """
-        self._projects: Dict[str, Union[Path, Project]] = {path.name: path for path in paths}
-
-    @property
-    def names(self) -> KeysView:
-        """
-        A function that returns a view of the known project names.
-
-        :return: a key view of the known project locations.
-        """
-        return self._projects.keys()
+        self._paths = paths
+        self._projects: Dict[str, Union[Path, Project]] = {}
 
     def get_project(self, name: str) -> Optional[Project]:
         """
@@ -409,20 +388,16 @@ class ProjectCache(object):
         has been requested, it is loaded and cached.
 
         :param name: the name of the desired project.
-        :return: the named project or ``None`` if we've never heard of the name.
+        :return: the named project or ``None`` if no such project directory can be found..
         """
-        if name in self._projects:
-            thing = self._projects[name]
+        if name not in self._projects:
+            for path in self._paths:
+                candidate = path / name
 
-            # if this is the first time to access the project, load it and stash it away.
-            if isinstance(thing, Path):
-                thing = get_project(thing)
-                self._projects[name] = thing
+                if candidate.is_dir():
+                    self._projects[name] = get_project(candidate)
 
-            # thing is now guaranteed to be a project.
-            return thing
-
-        return None
+        return self._projects[name] if name in self._projects else None
 
 
 def _fix_up_language_list(info: Dict[str, Union[str, Sequence[str]]]):

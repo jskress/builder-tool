@@ -8,7 +8,7 @@ from typing import Tuple, Callable, Sequence
 
 from builder.java import JavaConfiguration, PackageConfiguration, get_javac_version
 # noinspection PyProtectedMember
-from builder.java.java import _add_verbose_options, _add_class_path, build_names
+from builder.java.java import _add_verbose_options, add_class_path, build_names
 from builder.models import Dependency, DependencyPathSet
 from builder.project import Project
 from tests.test_support import Options, FakeProcess, FakeProcessContext
@@ -212,7 +212,7 @@ class TestAddClassPath(object):
         expected_class_path = os.pathsep.join(['a.jar', 'b.jar', 'c.jar'])
         options = []
 
-        _add_class_path(options, dps_list)
+        add_class_path(options, dps_list)
 
         assert options == ['--class-path', expected_class_path]
 
@@ -226,5 +226,5 @@ class TestBuildNames(object):
         })
 
         assert build_names(dependency) == (
-            'https://repo1.maven.org/maven2/dep/dep/4.5.6', Path('dep'), 'dep-4.5.6'
+            'https://repo1.maven.org/maven2/dep/dep/4.5.6', Path('dep'), 'dep-4.5.6', 'dep-4.5.6'
         )

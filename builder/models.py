@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, Sequence, Optional, Callable, List, Any, Type
 
 from builder.file_cache import file_cache
+from builder.schema import ObjectSchema, StringSchema, OneOfSchema, ArraySchema, BooleanSchema
 from builder.schema_validator import SchemaValidator
 from builder.signing import verify_signature
 from builder.utils import find
@@ -41,6 +42,41 @@ class Task(object):
         self.help_text = help_text
 
 
+_version_schema = StringSchema().format("semver")
+_version_validator = SchemaValidator(_version_schema)
+_full_dependency_schema = ObjectSchema()\
+    .properties(
+        location=StringSchema().enum('remote', 'local', 'project'),
+        group=StringSchema().min_length(1),
+        name=StringSchema().min_length(1),
+        classifier=StringSchema().min_length(1),
+        ignore_transients=BooleanSchema(),
+        version=_version_schema,
+        scope=OneOfSchema(
+            StringSchema().min_length(1),
+            ArraySchema().items(StringSchema().min_length(1))
+        )
+    )\
+    .required('location', 'version', 'scope')\
+    .additional_properties(False)
+_spec_dependency_schema = ObjectSchema()\
+    .properties(
+        spec=StringSchema().min_length(1),
+        classifier=StringSchema().min_length(1),
+        ignore_transients=BooleanSchema(),
+        scope=OneOfSchema(
+            StringSchema().min_length(1),
+            ArraySchema().items(StringSchema().min_length(1))
+        )
+    )\
+    .required('spec', 'scope')\
+    .additional_properties(False)
+dependency_schema = OneOfSchema(
+    _full_dependency_schema,
+    _spec_dependency_schema
+)
+
+
 class Dependency(object):
     """
     Instances of this class represent a dependency specified in a project file.
@@ -51,14 +87,17 @@ class Dependency(object):
         validation is done on project file load, we don't bother with any validation
         of the contents of the ``content`` dictionary here.
 
-        :param key: the key by which this dependency is known. This must be the same
-        as the ``content['name']`` field.
+        :param key: the key by which this dependency is known.
         :param content: a dictionary of the data that specifies the dependency.
         """
+        self._resolve_spec(key, content)
+
         self._key = key
         self._location = content['location']
         self._group_id = content['group'] if 'group' in content else None
         self._name = content['name'] if 'name' in content else key
+        self._classifier = content['classifier'] if 'classifier' in content else None
+        self._ignore_transients = content['ignore_transients'] if 'ignore_transients' in content else False
         self._version = content['version']
         self._transient = False
 
@@ -69,6 +108,55 @@ class Dependency(object):
                 self._scope = [self._scope]
         else:
             self._scope = []
+
+    @staticmethod
+    def _resolve_spec(key: str, content: Dict[str, Any]):
+        """
+        A function that will parse a dependency from a spec, if one was specified.
+
+        :param key: the key by which the dependency is known.
+        :param content: a dictionary of the data that specifies the dependency.
+        """
+        if 'spec' in content:
+            spec: str = content['spec']
+            parts = spec.split(':')
+
+            if len(parts) < 2 or len(parts) > 4:
+                raise ValueError(f'Cannot make the {key} dependency from the specification, "{spec}"')
+
+            location = parts.pop(0)
+            version = parts.pop()
+
+            if location not in ['local', 'remote', 'project']:
+                raise ValueError(f'A dependency cannot have a location of {location}.')
+            if not _version_validator.validate(version):
+                raise ValueError(f'The version, "{version}", is not a valid version for the {key} dependency.')
+
+            content['location'] = location
+            content['version'] = version
+
+            if len(parts) == 1:
+                # Name only.
+                name = parts[0].strip()
+
+                if len(name) > 0:
+                    content['name'] = name
+            elif len(parts) == 2:
+                # Group and name.
+                group, name = (parts[0].strip(), parts[1].strip())
+
+                if len(group) > 0:
+                    content['group'] = group
+
+                if len(name) > 0:
+                    content['name'] = name
+
+    @property
+    def key(self) -> str:
+        """
+        A read-only property that returns the key for this dependency.
+        """
+        return self._key
 
     @property
     def location(self) -> str:
@@ -125,6 +213,26 @@ class Dependency(object):
         :return: the name of the dependency.
         """
         return self._name
+
+    @property
+    def classifier(self) -> Optional[str]:
+        """
+        A read-only property that returns the classifier, if any, of the dependency.
+
+        :return: the classifier of the dependency.
+        """
+        return self._classifier
+
+    @property
+    def ignore_transients(self) -> Optional[str]:
+        """
+        A read-only property that returns whether or not any transient dependencies noted
+        by this dependency should be ignored.
+
+        :return: the whether or not the transient dependencies for this dependency should
+        be ignored.
+        """
+        return self._ignore_transients
 
     @property
     def version(self) -> str:
@@ -469,27 +577,7 @@ class DependencyContext(object):
 
         return path
 
-    def get_project_directories(self) -> List[Path]:
-        """
-        A function that returns the list of configured reference projects as a list of
-        directories.  Each directory corresponds to the "publishing" directory for a
-        project.  If the current language cannot resolve project dependencies, the list
-        returned will be empty.
-
-        :return: a (possibly empty) list of project publishing directories.
-        """
-        result: List[Path] = []
-
-        if self._language.project_as_dist_path:
-            for project_name in self._project_cache.names:
-                path = self._get_publishing_directory(project_name)
-
-                if path:
-                    result.append(path)
-
-        return result
-
-    def _get_publishing_directory(self, project_name: str) -> Optional[Path]:
+    def get_publishing_directory(self, project_name: str) -> Optional[Path]:
         """
         A helper function to resolve a project name to its project and then to a publishing
         directory.
@@ -498,12 +586,16 @@ class DependencyContext(object):
         :return: the project's publishing directory or ``None``.
         """
         project = self._project_cache.get_project(project_name)
-        config = project.get_config(
-            self._language.language, self._language.configuration_schema, self._language.configuration_class
-        )
 
-        with project:
-            return self._language.project_as_dist_path(config)
+        if project:
+            config = project.get_config(
+                self._language.language, self._language.configuration_schema, self._language.configuration_class
+            )
+
+            with project:
+                return self._language.project_as_dist_path(config)
+
+        return None
 
     def _fetch_file(self, dependency: Dependency, name: str) -> Optional[Path]:
         """
@@ -518,7 +610,7 @@ class DependencyContext(object):
         elif dependency.is_local:
             path = self._handle_local_resolution(name)
         else:  # location is project.
-            path = self._handle_project_resolution(name)
+            path = self._handle_project_resolution(dependency.key, name)
 
         return path
 
@@ -549,11 +641,12 @@ class DependencyContext(object):
 
         return None
 
-    def _handle_project_resolution(self, name: str) -> Optional[Path]:
+    def _handle_project_resolution(self, key: str, name: str) -> Optional[Path]:
         """
         A function that handles resolving a local file into its exact location based on
         its project.
 
+        :param key: the key to the dependency that owns the file.
         :param name: the name of the desired file.
         :return: the absolute path to the local file or ``None`` if it doesn't exist.
         """
@@ -563,13 +656,12 @@ class DependencyContext(object):
                 f'dependencies.'
             )
 
-        for project_name in self._project_cache.names:
-            path = self._get_publishing_directory(project_name)
+        path = self.get_publishing_directory(key)
 
-            if path:
-                path = path / name
-                if path.is_file():
-                    return path
+        if path:
+            path = path / name
+            if path.is_file():
+                return path
 
         return None
 

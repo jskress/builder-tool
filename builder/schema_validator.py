@@ -241,7 +241,7 @@ class SchemaValidator(object):
 
         self._extension_cache[name] = validator
 
-    def validate(self, value, path: str = ''):
+    def validate(self, value, path: str = '') -> bool:
         if path == '':
             path = '#'
         else:

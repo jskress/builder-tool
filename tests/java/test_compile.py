@@ -9,7 +9,7 @@ import pytest
 
 from builder.java import JavaConfiguration
 # noinspection PyProtectedMember
-from builder.java.compile import _build_compiler_options, _run_compiler, java_compile
+from builder.java.compile import _build_compiler_options, run_compiler, java_compile
 from builder.models import DependencyPathSet, Dependency
 from builder.project import Project
 from tests.test_support import Options, Regex, FakeProcessContext, FakeProcess
@@ -59,7 +59,7 @@ class TestRunJavaC(object):
         expected = ['javac', '-d', str(classes_directory), Regex(r'@.*')]
 
         with FakeProcessContext(FakeProcess(expected)):
-            _run_compiler(java_directory, classes_directory, [])
+            run_compiler(java_directory, classes_directory, [])
 
     def test_javac_compile_error(self):
         java_directory = Path('src')
@@ -68,7 +68,7 @@ class TestRunJavaC(object):
 
         with FakeProcessContext(FakeProcess(expected, rc=1)):
             with pytest.raises(ValueError) as info:
-                _run_compiler(java_directory, classes_directory, [])
+                run_compiler(java_directory, classes_directory, [])
 
         assert info.value.args[0] == 'Java source could not be compiled.'
 

@@ -32,6 +32,7 @@ class JavaConfiguration(object):
         self._test_resources_dir = None
         self._build_dir = None
         self._classes_dir = None
+        self._test_target_dir = None
         self._doc_dir = None
         self._dist_dir = None
         self._lib_dir = None
@@ -141,6 +142,24 @@ class JavaConfiguration(object):
             )
         return self._classes_dir
 
+    def tests_classes_dir(self, required: bool = False, ensure: bool = False) -> Path:
+        """
+        A function that returns the path to where compiled files for tests should be
+        written or found.  The path returned is absolute, the root of which comes
+        from the current project.
+
+        :param required: a flag indicating whether we should fail if the directory
+        does not exist.
+        :param ensure: a flag indicating whether the directory should be created if
+        it doesn't exist.
+        :return: the path to where compiled tests will be written.
+        """
+        if not self._test_target_dir:
+            self._test_target_dir = self._project.project_dir(
+                Path(self.build) / Path(self.tests_target), required, ensure
+            )
+        return self._test_target_dir
+
     def doc_dir(self, required: bool = False, ensure: bool = False) -> Path:
         """
         A function that returns the path to where JavaDoc files for the code should
@@ -210,6 +229,56 @@ class JavaConfiguration(object):
                 Path(self.dist) / Path(self.app_target), required, ensure
             )
         return self._app_dir
+
+
+class TestingConfiguration(object):
+    def __init__(self):
+        self.test_executor = 'junit5'
+        self.coverage_agent = 'jacoco'
+        self.coverage_reporter = 'jacoco-cli'
+        self.test_reports = None
+        self.coverage_reports = 'reports/coverage'
+
+        self._test_reports_dir = None
+        self._coverage_reports_dir = None
+
+    def test_reports_dir(self, config: JavaConfiguration, required: bool = False, ensure: bool = False) -> Path:
+        """
+        A function that returns the path to where execution reports for running tests
+        should be written.  The path returned is absolute, the root of which comes the
+        current project.
+
+        :param config: the Java language configuration to refer to.
+        :param required: a flag indicating whether we should fail if the directory
+        does not exist.
+        :param ensure: a flag indicating whether the directory should be created if
+        it doesn't exist.
+        :return: the path to where test execution report files will be written.
+        """
+        if not self._test_reports_dir and self.test_reports:
+            self._test_reports_dir = config._project.project_dir(
+                Path(config.build) / Path(self.test_reports), required, ensure
+            )
+        return self._test_reports_dir
+
+    def coverage_reports_dir(self, config: JavaConfiguration, required: bool = False, ensure: bool = False) -> Path:
+        """
+        A function that returns the path to where coverage reports from running tests
+        should be written or found.  The path returned is absolute, the root of which
+        comes the current project.
+
+        :param config: the Java language configuration to refer to.
+        :param required: a flag indicating whether we should fail if the directory
+        does not exist.
+        :param ensure: a flag indicating whether the directory should be created if
+        it doesn't exist.
+        :return: the path to where coverage files and reports will be written.
+        """
+        if not self._coverage_reports_dir and self.coverage_reports:
+            self._coverage_reports_dir = config._project.project_dir(
+                Path(config.build) / Path(self.coverage_reports), required, ensure
+            )
+        return self._coverage_reports_dir
 
 
 class PackageConfiguration(object):
@@ -300,52 +369,44 @@ def _add_verbose_options(options: List[str], *extras):
             options.insert(0, '-verbose')
 
 
-def _add_class_path(options: List[str], path_sets: List[DependencyPathSet]):
+def add_class_path(options: List[str], path_sets: List[DependencyPathSet], paths: List[Path] = None):
     """
     A function for adding the given set of dependency path sets to the specified
     array of (ostensibly) command line options.
 
     :param options: the options list to add verbose options to.
     :param path_sets: the list of path sets to make a class path option out of.
+    :param paths: an optional list of paths to include in the class path.
     """
-    if path_sets:
-        paths = [str(path_set.primary_path) for path_set in path_sets]
+    if path_sets or paths:
+        path_strings = [] if paths is None else [str(path) for path in paths]
+        path_strings.extend([str(path_set.primary_path) for path_set in path_sets])
         options.append('--class-path')
-        options.append(os.pathsep.join(paths))
+        options.append(os.pathsep.join(path_strings))
 
 
-# noinspection PyUnusedLocal
-def java_test(language_config: JavaConfiguration):
-    """
-    A function that provides the implementation of the ``test`` task for the Java
-    language.  It will build and execute any tests found in the location specified
-    by the Java language configuration.
-
-    **Note:** This is not currently implemented.
-
-    :param language_config: the configured Java language information.
-    """
-    pass
-
-
-def build_names(dependency: Dependency, version_in_url: bool = True) -> Tuple[str, Path, str]:
+def build_names(dependency: Dependency, version_in_url: bool = True) -> Tuple[str, Path, str, str]:
     """
     A function to build directory and file names based on the given dependency..
 
     :param dependency: the dependency to create the file container for.
     :param version_in_url: a flag noting whether the dependency version should be included
     in the URL we build.
-    :return: a tuple containing an appropriate file container and a base file name.
+    :return: a tuple containing an appropriate URL, relative path, a classified base file name
+    and a base file name.
     """
     group = dependency.group.replace('.', '/')
     name = dependency.name
     version = dependency.version
     directory_url = f'https://repo1.maven.org/maven2/{group}/{name}'
+    classifier = dependency.classifier
+    base_name = f'{name}-{version}'
+    classified_name = f'{base_name}-{classifier}' if classifier else base_name
 
     if version_in_url:
         directory_url = f'{directory_url}/{version}'
 
-    return directory_url, Path(name), f'{name}-{version}'
+    return directory_url, Path(name), classified_name, base_name
 
 
 java_version, java_version_number = get_javac_version()

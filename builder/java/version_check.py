@@ -180,14 +180,19 @@ def check_dependency_versions():
     context = global_options.project().get_full_dependency_context('java')
 
     for dependency in context.dependencies:
-        directory_url, directory_path, base_name = build_names(dependency, version_in_url=False)
+        directory_url, directory_path, _, _ = build_names(dependency, version_in_url=False)
+        version_info = None
 
         context.set_remote_info(directory_url, directory_path)
 
         if dependency.is_remote:
             version_info = _get_remote_version_info(context, dependency)
         elif dependency.is_project:
-            version_info = _get_local_version_info(context.get_project_directories(), dependency.name)
+            publishing_directory = context.get_publishing_directory(dependency.key)
+
+            if publishing_directory:
+                version_info = _get_local_version_info([publishing_directory], dependency.name)
+
         else:  # dependency.is_local
             version_info = _get_local_version_info(context.local_paths, dependency.name)
 
@@ -196,10 +201,10 @@ def check_dependency_versions():
             latest, available = version_info
 
             if latest == dependency_version:
-                out(f'----> {dependency.name}: {dependency_version} (current).')
+                out(f'  - {dependency.name}: {dependency_version} (current).')
             elif dependency_version not in available:
-                out(f'----> Version {dependency.version} of {dependency.name} is not available.')
+                out(f'  - Version {dependency.version} of {dependency.name} is not available.')
             else:
-                out(f'----> {dependency.name}: {dependency_version} (not latest; latest is {latest}).')
+                out(f'  - {dependency.name}: {dependency_version} (not latest; latest is {latest}).')
         else:
-            out(f'----> Could not obtain version information for the {dependency.name} dependency.')
+            out(f'  - Could not obtain version information for the {dependency.name} dependency.')
