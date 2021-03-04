@@ -92,15 +92,17 @@ def _build_junit5_options(language_config: JavaConfiguration, task_config: Testi
     test_reports_dir = task_config.test_reports_dir(language_config, ensure=True)
     extras: List[Path] = [test_classes_dir, project_classes_dir]
     details = _determine_details_level()
-    options: List[str] = ['--disable-banner', f'--details={details}']
+    options: List[str] = []
 
     _conditionally_add(language_config.resources_dir(), extras)
     _conditionally_add(language_config.test_resources_dir(), extras)
 
     add_class_path(options, dependencies, extras)
 
-    options.append('--scan-classpath')
-    options.append(str(test_classes_dir))
+    options.extend([
+        'org.junit.platform.console.ConsoleLauncher', '--disable-banner', f'--details={details}', '--scan-classpath',
+        str(test_classes_dir)
+    ])
 
     if test_reports_dir:
         options.append('--reports-dir')
@@ -141,14 +143,16 @@ def _build_jacoco_cli_options(language_config: JavaConfiguration, task_config: T
     :param dependencies: any configured dependencies that were given..
     :return: the list of options for the JaCoCo CLI.
     """
+    executor = _find_primary_jar(task_config.coverage_reporter, dependencies)
     project_name = global_options.project().name
     coverage_report_dir = task_config.coverage_reports_dir(language_config)
     data_file = coverage_report_dir / f'{project_name}.exec'
 
     # noinspection SpellCheckingInspection
     options = [
-        'report', str(data_file), '--classfiles', str(language_config.classes_dir(required=True)),
-        '--html', str(task_config.coverage_reports_dir(language_config, ensure=True)), '--name', project_name,
+        '-jar', str(executor), 'report', str(data_file), '--classfiles',
+        str(language_config.classes_dir(required=True)), '--html',
+        str(task_config.coverage_reports_dir(language_config, ensure=True)), '--name', project_name,
     ]
 
     if global_options.verbose() == 0:
@@ -171,7 +175,6 @@ def run_tests(language_config: JavaConfiguration, task_config: TestingConfigurat
     """
     executor_name = task_config.test_executor
     coverage_agent_name = task_config.coverage_agent
-    executor = _find_primary_jar(task_config.test_executor, dependencies)
     options_builder = _supported_tools[executor_name]
     cmd_line = ['java']
 
@@ -180,15 +183,13 @@ def run_tests(language_config: JavaConfiguration, task_config: TestingConfigurat
 
         cmd_line.extend(agent_options_builder(language_config, task_config, dependencies))
 
-    cmd_line.extend(['-jar', str(executor)])
     cmd_line.extend(options_builder(language_config, task_config, dependencies))
 
     checked_run(cmd_line, task_config.test_executor)
 
     if task_config.coverage_reporter and task_config.coverage_reports:
-        executor = _find_primary_jar(task_config.coverage_reporter, dependencies)
         options_builder = _supported_tools[task_config.coverage_reporter]
-        cmd_line = ['java', '-jar', str(executor)]
+        cmd_line = ['java']
 
         cmd_line.extend(options_builder(language_config, task_config, dependencies))
 
