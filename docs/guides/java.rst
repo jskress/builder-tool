@@ -186,20 +186,20 @@ The Java language configuration may contain these fields:
 
 The ``test`` task configuration may contain these fields:
 
-``test-executor``
+``test_executor``
     The symbolic name for the command line tool to use to run unit tests.  Currently,
     ``junit5`` is the only supported value.  It is the default.  For this to work,
     there must also be a dependency defined in the project that is also called ``junit5``
     which must resolve to the JUnit5 standalone command line tool.
 
-``coverage-agent``
+``coverage_agent``
     The symbolic name for the tool that will be used as a JVM agent for capturing
     code coverage as tests are executed.  Currently, ``jacoco`` is the only supported
     value.  It is the default.  For this to work, there must also be a dependency
     defined in the project that is also called ``jacoco`` which must resolve to the
     JaCoCo agent.  Set this to ``null`` to disable code coverage completely.
 
-``coverage-reporter``
+``coverage_reporter``
     The symbolic name for the command line tool that will be used to convert captured
     code coverage information into a report.  Currently, ``jacoco-cli`` is the only
     supported value.  It is the default.  For this to work, there must also be a
@@ -207,16 +207,20 @@ The ``test`` task configuration may contain these fields:
     resolve to to the no-dependencies JaCoCo command line tool.  Set this to ``null``
     to disable code coverage completely.
 
-``test-reports``
+``test_reports``
     The relative directory where test result files will be written.  This is ``null``
     by default, thus disabling the output portion of test execution.  The directory
     is taken as relative to the ``build`` field at the language level.  If you want
     test result XML files, the value of ``reports/tests`` is suggested.
 
-``coverage-reports``
+``coverage_reports``
     The relative directory where coverage capture and report files will be written.
     The default value is ``reports/coverage``.  Set this to ``null`` to disable code
     coverage completely.
+
+``no_tests``
+    For projects with no tests, setting this to ``true`` allows the ``test`` task to
+    be effectively skipped without having to disable required task handling.
 
 ``package`` Task Configuration
 ------------------------------
@@ -227,6 +231,27 @@ The ``package`` task configuration may contain these fields:
     The class name that is the entry point for an application.  If this is not
     specified, an attempt will be made to find one automatically. It is ignored for
     libraries.
+
+``fat_jar``
+    A flag that indicates whether dependencies scoped to the ``package`` task should
+    be included in the archive being built.  This will default to ``true`` for
+    application projects and ``false`` for library projects.
+
+``exclude``
+    A list of strings that note file patterns to exclude from the archive being created.
+    Each entry will be interpreted as a file name glob pattern unless the first character
+    is the tilde (``~``).  In that case, the rest of the string is taken to be a regular
+    expression pattern.  Any relative files that match an exclusion pattern are not
+    included in the final archive.
+
+``merge``
+    A list of strings that note file patterns that should be merged when duplicates are
+    found.  Java services files are an example but don't include that pattern as it is
+    added automatically.  Each entry will be interpreted as a file name glob pattern
+    unless the first character is the tilde (``~``).  In that case, the rest of the
+    string is taken to be a regular expression pattern.  Any relative files that match
+    a merge pattern and are found more than once are combined into a single file for
+    the archive.
 
 ``sources``
     A flag that indicates whether a jar file of the project sources should be created
