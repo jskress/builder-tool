@@ -2,8 +2,11 @@
 This file provides all the support we need around the `jar` tool and packaging stuff.
 """
 import re
+import shutil
+import tempfile
 from pathlib import Path
-from typing import Optional, Sequence, Tuple, List, Dict
+from typing import Optional, Sequence, Tuple, List, Dict, Union, Callable
+from zipfile import ZipFile, ZipInfo
 
 from builder import VERSION
 from builder.models import DependencyPathSet
@@ -151,9 +154,11 @@ def _set_file_attributes(variant: Variant, category: str, usage: str, docs_type:
     variant.set_attr('dependency.bundling', 'external')
 
     if docs_type:
+        # noinspection SpellCheckingInspection
         variant.set_attr('docstype', docs_type)
     else:
         variant.set_attr('jvm.version', java_version_number)
+        # noinspection SpellCheckingInspection
         variant.set_attr('libraryelements', 'jar')
 
     variant.set_attr('usage', f'java-{usage}')
@@ -219,6 +224,154 @@ def _run_packager(manifest: Optional[Sequence[str]], entry_point: Optional[str],
     return sign_path(jar_file)
 
 
+_current_language_config: Optional[JavaConfiguration] = None
+_current_task_config: Optional[PackageConfiguration] = None
+_current_source_root: Optional[Path] = None
+
+
+def _store_file(source: Union[Path, ZipInfo], target_path: Path, read_source: Callable[[], bytes],
+                copy_source: Callable[[], str]):
+    """
+    A helper function that properly stores an individual file.  If the target does
+    not exist, the source is simply put in place.  If the target exists, it is
+    checked to see if it is merge-able and merged if so.  It is silently skipped if
+    the source and target match.  Otherwise, an exception is produced.
+
+    :param source: the relative ``Path`` or a ``ZipInfo`` which is the source.
+    :param target_path: the path where the file data is to be stored.
+    :param read_source: a function that produces the content of the source as bytes.
+    :param copy_source: a function that does a straight copy of the source to the target.
+    """
+    if _current_task_config.should_include(source):
+        if target_path.exists():
+            if _current_task_config.can_merge(source):
+                data = read_source()
+
+                if len(data) > 0:
+                    ch = data[-1]
+                    if ch != b'\r' and ch != b'\n':
+                        data = data + b'\n'
+
+                target_path.write_bytes(data + target_path.read_bytes())
+            else:
+                if read_source() != target_path.read_bytes():
+                    text = str(source) if isinstance(source, Path) else source.filename
+                    raise ValueError(
+                        f'Cannot package {text}, its contents differ from a previous entry with the '
+                        'same name.'
+                    )
+        else:
+            copy_source()
+
+
+def _extract_archive(archive: Path, target: Path):
+    """
+    A function that extracts the contents of an archive (zip/jar) to the specified
+    directory.
+
+    :param archive: the zip/jar archive to extract.
+    :param target: the target directory to write entries to.
+    """
+    with ZipFile(archive) as zip_file:
+        for entry in zip_file.infolist():
+            if entry.is_dir():
+                zip_file.extract(entry, target)
+            else:
+                target_path = target / entry.filename
+
+                _store_file(
+                    entry, target_path,
+                    lambda: zip_file.read(entry),
+                    lambda: zip_file.extract(entry, target)
+                )
+
+
+def _copy_local_file(source: str, target: str):
+    """
+    A function to copy a file as part of directory tree copying.  We wrap the typical
+    ``shutil.copy2()`` function to properly handle file collisions.
+
+    :param source: the source file to copy.
+    :param target: the target file to write.
+    """
+    source_path = Path(source)
+    relative_path = source_path.relative_to(_current_source_root)
+    target_path = Path(target)
+
+    _store_file(
+        relative_path, target_path, source_path.read_bytes,
+        lambda: shutil.copy2(source, target)
+    )
+
+
+def _copy_tree(source: Path, target: Path):
+    """
+    A helper function to copy a full directory tree from one place to another.
+
+    :param source: the root of the source tree to copy.
+    :param target: the root to copy the tree under.
+    """
+    global _current_source_root
+
+    try:
+        _current_source_root = source
+
+        shutil.copytree(source, target, copy_function=_copy_local_file, dirs_exist_ok=True)
+    finally:
+        _current_source_root = None
+
+
+def _build_primary_jar(language_config: JavaConfiguration, task_config: PackageConfiguration,
+                       dependencies: List[DependencyPathSet], classes_dir: Path,
+                       resources_dir: Path, jar_file: Path) -> Dict[str, str]:
+    """
+    A function that builds a temporary directory structure representing the desired
+    contents for a jar file and then creates it.  The directory structure is populated
+    by copying local files and expanding class path dependency jar files.  File collisions
+    will be handled as follows:
+
+    - If the source and target files are the same, the duplicate is ignored.
+    - If the file may be merged (like service definitions), they are merged.
+    - Otherwise, an error is produced.
+
+    :param language_config: the current Java language configuration information.
+    :param task_config: the current ``package`` task configuration information.
+    :param dependencies: the set of dependencies to account for.
+    :param classes_dir: the directory containing the current project's compiled classes.
+    :param resources_dir: the directory containing the current project's resources.
+    :return: the dictionary of digital signatures for the jar we created.
+    """
+    global _current_language_config, _current_task_config, _current_source_root
+
+    project = global_options.project()
+    manifest = _create_manifest(project.version, project.description)
+    entry_point = None if language_config.type != 'application' else \
+        _find_entry_point(classes_dir, task_config.get_entry_point())
+
+    # Build the jar contents from all our sources, handling duplicates as appropriate
+    with tempfile.TemporaryDirectory(dir=language_config.build_dir(ensure=True)) as temp_dir:
+        target_dir = Path(temp_dir) / 'jar_content'
+
+        try:
+            _current_language_config = language_config
+            _current_task_config = task_config
+
+            _copy_tree(classes_dir, target_dir)
+            _copy_tree(resources_dir, target_dir)
+
+            if task_config.include_dependencies(language_config):
+                for path_set in dependencies:
+                    if path_set.primary_path.is_dir():
+                        _copy_tree(path_set.primary_path, target_dir)
+                    elif path_set.primary_path.is_file():
+                        _extract_archive(path_set.primary_path, target_dir)
+        finally:
+            _current_language_config = None
+            _current_task_config = None
+
+        return _run_packager(manifest, entry_point, jar_file, target_dir, None)
+
+
 def java_package(language_config: JavaConfiguration, task_config: PackageConfiguration,
                  dependencies: List[DependencyPathSet]):
     """
@@ -233,16 +386,13 @@ def java_package(language_config: JavaConfiguration, task_config: PackageConfigu
     """
     project = global_options.project()
     code_dir, classes_dir, doc_dir, resources_dir, output_dir = _get_packaging_dirs(language_config)
-    entry_point = None if language_config.type != 'application' else \
-        _find_entry_point(classes_dir, task_config.get_entry_point())
     output_dir = output_dir / project.name
-    manifest = _create_manifest(project.version, project.description)
     jar_file = output_dir / f'{project.name}-{project.version}.jar'
     module_data = _create_module_data()
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    signatures = _run_packager(manifest, entry_point, jar_file, classes_dir, resources_dir)
+    signatures = _build_primary_jar(language_config, task_config, dependencies, classes_dir, resources_dir, jar_file)
 
     _add_variant(module_data, API_ELEMENTS, jar_file, signatures, "library", "api", None, dependencies)
     _add_variant(module_data, RUNTIME_ELEMENTS, jar_file, signatures, "library", "runtime", None, dependencies)

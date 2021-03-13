@@ -173,6 +173,9 @@ def run_tests(language_config: JavaConfiguration, task_config: TestingConfigurat
     :param task_config: the configuration for this task.
     :param dependencies: any configured dependencies on the ``test`` task.
     """
+    if task_config.no_tests:
+        return
+
     executor_name = task_config.test_executor
     coverage_agent_name = task_config.coverage_agent
     options_builder = _supported_tools[executor_name]

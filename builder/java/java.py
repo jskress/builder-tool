@@ -1,9 +1,12 @@
 """
 This library contains all the build tasks and support code for Java.
 """
+import fnmatch
 import os
+import re
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union
+from zipfile import ZipInfo
 
 from builder.models import DependencyPathSet, Dependency
 from builder.utils import checked_run, global_options, remove_directory
@@ -238,6 +241,7 @@ class TestingConfiguration(object):
         self.coverage_reporter = 'jacoco-cli'
         self.test_reports = None
         self.coverage_reports = 'reports/coverage'
+        self.no_tests = False
 
         self._test_reports_dir = None
         self._coverage_reports_dir = None
@@ -284,8 +288,14 @@ class TestingConfiguration(object):
 class PackageConfiguration(object):
     def __init__(self):
         self.entry_point = None
+        self.fat_jar = None
+        self.exclude: List[str] = []
+        self.merge: List[str] = []
         self.sources = None
         self.doc = None
+
+        self._exclusions: List[re.Pattern] = []
+        self._merges: List[re.Pattern] = []
 
     def get_entry_point(self) -> Optional[str]:
         """
@@ -296,6 +306,88 @@ class PackageConfiguration(object):
         not configured.
         """
         return self.entry_point
+
+    def include_dependencies(self, language_config: JavaConfiguration) -> bool:
+        """
+        A function that returns whether the packaging task should package up all
+        the dependencies into the primary jar file.  If this is not configured
+        in the project file, this will return ``True`` for application projects
+        and ``False`` for library projects.
+
+        :return: whether project sources should be packaged in their own jar along
+        side the compiled code jar during the packaging task.
+        """
+        return language_config.type == 'application' if self.fat_jar is None else self.fat_jar
+
+    def should_include(self, relative_path: Union[Path, ZipInfo]) -> bool:
+        """
+        A function that takes a relative path or archive entry and returns whether
+        it should be included in a packing operation.
+
+        :param relative_path: the relative ``Path`` or a ``ZipInfo``.
+        :return: ``True`` if the path/entry should be included in the archive being
+        built or ``False`` if not.
+        """
+        if len(self._exclusions) == 0:
+            # If this is our first time, then create all our regular expressions.
+            self._build_regex_list(self.exclude, self._exclusions, [r'(?i:meta-inf/manifest.mf)\Z'])
+
+        return not self._is_matched(relative_path, self._exclusions)
+
+    def can_merge(self, relative_path: Union[Path, ZipInfo]) -> bool:
+        """
+        A function that determines whether or not a relative path is of a merge-able
+        type.  In the case where a file is encountered more than once while building
+        a jar, it's possible that the instances of the file should be merged to
+        create the final one to be packaged.  Java service files are an example
+        (handled automatically).
+
+        :param relative_path: the relative ``Path`` or a ``ZipInfo``.
+        :return: ``True`` if the path/entry is merge-able  or ``False`` if not.
+        """
+        if len(self._merges) == 0:
+            # If this is our first time, then create all our regular expressions.
+            self._build_regex_list(
+                self.merge, self._merges,
+                [r'(?i:meta-inf)/services/[a-zA-Z_$][a-zA-Z\d_$]*(?:\.[a-zA-Z_$][a-zA-Z\d_$]*)*\Z']
+            )
+
+        return self._is_matched(relative_path, self._merges)
+
+    @staticmethod
+    def _build_regex_list(patterns: List[str], regexes: List[re.Pattern], canned: List[str]):
+        """
+        A helper method for converting a list of strings into a list of compiled
+        regular expressions.  Each string is treated as a straight regular expression
+        if its first character is the tilde (``~``).  Otherwise, it is assumed to be
+        a file name glob pattern and converted to a regex using ``fnmatch.translate()``.
+
+        :param patterns: the list of strings to convert.
+        :param regexes: the list to populate.
+        :param canned: any default regexes to include.
+        """
+        for pattern in canned:
+            regexes.append(re.compile(pattern))
+
+        for pattern in patterns:
+            if pattern[0] == '~':
+                regexes.append(re.compile(pattern[1:]))
+            else:
+                regexes.append(re.compile(fnmatch.translate(pattern)))
+
+    @staticmethod
+    def _is_matched(relative_path: Union[Path, ZipInfo], regexes: List[re.Pattern]) -> bool:
+        """
+        A helper function that loops through the given list of regular expressions
+        and returns whether or not the given path or entry matches any of them.
+
+        :param relative_path: the relative ``Path`` or a ``ZipInfo`` to try to match.
+        :return: ``True`` if the path/entry matches at least one of the regexes or
+        ``False`` if not.
+        """
+        text = str(relative_path) if isinstance(relative_path, Path) else relative_path.filename
+
+        return any((regex.match(text) for regex in regexes))
 
     def package_sources(self, language_config: JavaConfiguration) -> bool:
         """

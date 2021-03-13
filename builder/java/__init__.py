@@ -1,4 +1,4 @@
-from builder.schema import BooleanSchema, ObjectSchema, StringSchema
+from builder.schema import BooleanSchema, ObjectSchema, StringSchema, ArraySchema
 from builder.schema_validator import SchemaValidator
 from .sync_ij import sync_dependencies_to_ij
 from ..models import Task, Language
@@ -38,13 +38,17 @@ _test_configuration_schema = ObjectSchema()\
         coverage_agent=StringSchema().min_length(1),
         coverage_reporter=StringSchema().min_length(1),
         test_reports=StringSchema(),
-        coverage_reports=StringSchema()
+        coverage_reports=StringSchema(),
+        no_tests=BooleanSchema()
     )\
     .additional_properties(False)
 
 _package_configuration_schema = ObjectSchema()\
     .properties(
         entry_point=StringSchema().min_length(1),
+        fat_jar=BooleanSchema(),
+        exclude=ArraySchema().items(StringSchema().min_length(1)),
+        merge=ArraySchema().items(StringSchema().min_length(1)),
         sources=BooleanSchema(),
         doc=BooleanSchema()
     )\
