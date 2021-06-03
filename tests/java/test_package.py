@@ -190,7 +190,7 @@ class TestModuleDataCreation(object):
             'attributes': {
                 'org.gradle.category': 'library',
                 'org.gradle.dependency.bundling': 'external',
-                'org.gradle.jvm.version': 15,
+                'org.gradle.jvm.version': 16,
                 'org.gradle.libraryelements': 'jar',
                 'org.gradle.usage': 'java-api'
             }
@@ -320,9 +320,10 @@ class TestJavaPackage(object):
         task_config.doc = False
 
         jar_file = java_config.library_dist_dir(ensure=True) / project.name / 'test-1.2.3.jar'
-        directory = java_config.classes_dir()
+        _ = java_config.classes_dir(ensure=True)
+        _ = java_config.resources_dir(ensure=True)
         expected = [
-            'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', str(directory), '.'
+            'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', Regex('.*/jar_content'), '.'
         ]
 
         with FakeProcessContext(FakeProcess(expected)):
@@ -345,10 +346,11 @@ class TestJavaPackage(object):
         task_config.doc = False
 
         jar_file = config.library_dist_dir(ensure=True) / project.name / 'test-1.2.3.jar'
-        directory = config.classes_dir()
+        _ = config.classes_dir(ensure=True)
+        _ = config.resources_dir(ensure=True)
         code_dir = config.code_dir()
         expected = [
-            'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', str(directory), '.'
+            'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', Regex('.*/jar_content'), '.'
         ]
 
         with FakeProcessContext(FakeProcess(expected)):
@@ -375,13 +377,14 @@ class TestJavaPackage(object):
 
         jar_file = config.library_dist_dir(ensure=True) / project.name / 'test-1.2.3.jar'
         sources_jar_file = config.library_dist_dir() / project.name / 'test-1.2.3-sources.jar'
-        directory = config.classes_dir()
+        _ = config.classes_dir(ensure=True)
+        resources_dir = config.resources_dir(ensure=True)
         code_dir = config.code_dir(ensure=True)
         expected_jar = [
-            'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', str(directory), '.'
+            'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', Regex('.*/jar_content'), '.'
         ]
         expected_sources = [
-            'jar', '--create', '--file', str(sources_jar_file), '-C', str(code_dir), '.'
+            'jar', '--create', '--file', str(sources_jar_file), '-C', str(code_dir), '.', '-C', str(resources_dir), '.'
         ]
 
         with FakeProcessContext([FakeProcess(expected_jar), FakeProcess(expected_sources)]):
@@ -404,6 +407,7 @@ class TestJavaPackage(object):
         task_config.sources = False
 
         _ = config.classes_dir(ensure=True)
+        _ = config.resources_dir(ensure=True)
         doc_dir = config.doc_dir()
 
         with pytest.raises(ValueError) as info:
@@ -427,10 +431,11 @@ class TestJavaPackage(object):
 
         jar_file = config.library_dist_dir(ensure=True) / project.name / 'test-1.2.3.jar'
         doc_jar_file = config.library_dist_dir() / project.name / 'test-1.2.3-javadoc.jar'
-        directory = config.classes_dir()
+        _ = config.classes_dir(ensure=True)
+        _ = config.resources_dir(ensure=True)
         doc_dir = config.doc_dir(ensure=True)
         expected_jar = [
-            'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', str(directory), '.'
+            'jar', '--create', '--file', str(jar_file), '--manifest', Regex('.*'), '-C', Regex('.*/jar_content'), '.'
         ]
         expected_doc = [
             'jar', '--create', '--file', str(doc_jar_file), '-C', str(doc_dir), '.'

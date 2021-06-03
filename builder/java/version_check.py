@@ -1,110 +1,13 @@
 """
 This file provides the support we need around dependency version checking.
 """
-import re
 from pathlib import Path
 from typing import Tuple, List, Optional
 from xml.etree import ElementTree
 
 from builder.java.java import build_names
-from builder.models import Dependency, DependencyContext
+from builder.models import Dependency, DependencyContext, Version
 from builder.utils import global_options, out, verbose_out
-
-_version_pattern = re.compile(r'^(\d+)\.(\d+)\.(\d+)([-_.]\w+)?$')
-_tag_pattern = re.compile(r'.(\D*)(\d*)')
-
-
-def _compare_tags(tag1: Optional[str], tag2: Optional[str]) -> int:
-    """
-    A function that attempts proper ordering of the tag portion of a version.
-
-    :param tag1: the first tag to look at.
-    :param tag2: the second tag to look at.
-    :return: the usual result of comparing.
-    """
-    # Simple equivalence
-    if (tag1 is None and tag2 is None) or tag1 == tag2:
-        return 0
-
-    # Normalize and drop the separator.
-    t1_match = _tag_pattern.match(tag1 if tag1 else '-0')
-    t1_group_1 = t1_match.group(1)
-    t2_match = _tag_pattern.match(tag2 if tag2 else '-0')
-    t2_group_1 = t2_match.group(1)
-
-    if t1_group_1 and not t2_group_1:
-        return -1
-    if not t1_group_1 and t2_group_1:
-        return 1
-    # We have letter tags.
-    if t1_group_1 and t1_group_1 != t2_group_1:
-        return -1 if t1_group_1 < t2_group_1 else 1
-
-    t1_number = int(t1_match.group(2)) if t1_match.group(2) else 0
-    t2_number = int(t2_match.group(2)) if t2_match.group(2) else 0
-
-    return t1_number - t2_number
-
-
-class Version(object):
-    def __init__(self, text: str):
-        match = _version_pattern.match(text)
-        if not match:
-            raise ValueError(f'The text, "{text}", cannot be parsed as a version identifier.')
-        self._major = int(match.group(1))
-        self._minor = int(match.group(2))
-        self._micro = int(match.group(3))
-        self._tag = match.group(4) if match.group(4) else ''
-
-    def _compare(self, other: 'Version'):
-        diff = self._major - other._major
-
-        if diff == 0:
-            diff = self._minor - other._minor
-
-        if diff == 0:
-            diff = self._micro - other._micro
-
-        if diff == 0 and self._tag != other._tag:
-            diff = _compare_tags(self._tag, other._tag)
-
-        return diff
-
-    def __eq__(self, other):
-        if not isinstance(other, Version):
-            return NotImplemented
-
-        return self._compare(other) == 0
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __lt__(self, other):
-        if not isinstance(other, Version):
-            return NotImplemented
-
-        return self._compare(other) < 0
-
-    def __le__(self, other):
-        if not isinstance(other, Version):
-            return NotImplemented
-
-        return self._compare(other) <= 0
-
-    def __gt__(self, other):
-        if not isinstance(other, Version):
-            return NotImplemented
-
-        return self._compare(other) > 0
-
-    def __ge__(self, other):
-        if not isinstance(other, Version):
-            return NotImplemented
-
-        return self._compare(other) >= 0
-
-    def __str__(self) -> str:
-        return f'{self._major}.{self._minor}.{self._micro}{self._tag}'
 
 
 def _get_remote_version_info(context: DependencyContext, dependency: Dependency) -> \
@@ -178,12 +81,13 @@ def check_dependency_versions():
     it's version cannot be found.
     """
     context = global_options.project().get_full_dependency_context('java')
+    local_paths = global_options.project().configuration.local_paths
 
     for dependency in context.dependencies:
-        directory_url, directory_path, _, _ = build_names(dependency, version_in_url=False)
+        resolver, _, _ = build_names(dependency, version_in_url=False)
         version_info = None
 
-        context.set_remote_info(directory_url, directory_path)
+        context.set_remote_resolver(resolver)
 
         if dependency.is_remote:
             version_info = _get_remote_version_info(context, dependency)
@@ -194,7 +98,7 @@ def check_dependency_versions():
                 version_info = _get_local_version_info([publishing_directory], dependency.name)
 
         else:  # dependency.is_local
-            version_info = _get_local_version_info(context.local_paths, dependency.name)
+            version_info = _get_local_version_info(local_paths, dependency.name)
 
         if version_info:
             dependency_version = Version(dependency.version)

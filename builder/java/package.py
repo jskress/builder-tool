@@ -4,6 +4,7 @@ This file provides all the support we need around the `jar` tool and packaging s
 import re
 import shutil
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence, Tuple, List, Dict, Union, Callable
 from zipfile import ZipFile, ZipInfo
@@ -224,9 +225,76 @@ def _run_packager(manifest: Optional[Sequence[str]], entry_point: Optional[str],
     return sign_path(jar_file)
 
 
+def _get_path_datetime(source: Union[Path, ZipInfo]) -> datetime:
+    """
+    A helper method that returns a ``datetime`` object for the given source
+
+    :param source: the source object to get the timestamp for.
+    :return: the source's timestamp.
+    """
+    if isinstance(source, Path):
+        dt = datetime.fromtimestamp(source.stat().st_mtime)
+        year = dt.year
+        month = dt.month
+        day = dt.day
+        hours = dt.hour
+        minutes = dt.minute
+        seconds = dt.second
+    else:
+        year, month, day, hours, minutes, seconds = source.date_time
+
+    return datetime(year, month, day, hours, minutes, seconds)
+
+
+def _get_path_size(source: Union[Path, ZipInfo]) -> int:
+    """
+    A helper method that returns the file size for the given source
+
+    :param source: the source object to get the file size for.
+    :return: the source's size.
+    """
+    return source.stat().st_size if isinstance(source, Path) else source.file_size
+
+
+def _get_file_action(source: Union[Path, ZipInfo], target_path: Path, action: str) -> str:
+    """
+    A helper function that decides, based on the given action whether the target path
+    should be merged, replaced, preserved or should produce an error.
+    """
+    if action == 'merge':
+        return action
+    if action == 'first':
+        return 'preserve'
+    if action == 'last':
+        return 'replace'
+    if action == 'newest':
+        source_value = _get_path_datetime(source)
+        target_value = _get_path_datetime(target_path)
+
+        return 'preserve' if source_value < target_value else 'replace'
+    if action == 'oldest':
+        source_value = _get_path_datetime(source)
+        target_value = _get_path_datetime(target_path)
+
+        return 'replace' if source_value < target_value else 'preserve'
+    if action == 'largest':
+        source_value = _get_path_size(source)
+        target_value = _get_path_size(target_path)
+
+        return 'preserve' if source_value < target_value else 'replace'
+    if action == 'smallest':
+        source_value = _get_path_size(source)
+        target_value = _get_path_size(target_path)
+
+        return 'replace' if source_value < target_value else 'preserve'
+
+    return 'error'
+
+
 _current_language_config: Optional[JavaConfiguration] = None
 _current_task_config: Optional[PackageConfiguration] = None
 _current_source_root: Optional[Path] = None
+_duplicate_paths: List[str] = []
 
 
 def _store_file(source: Union[Path, ZipInfo], target_path: Path, read_source: Callable[[], bytes],
@@ -244,22 +312,25 @@ def _store_file(source: Union[Path, ZipInfo], target_path: Path, read_source: Ca
     """
     if _current_task_config.should_include(source):
         if target_path.exists():
-            if _current_task_config.can_merge(source):
+            action = _get_file_action(source, target_path, _current_task_config.get_path_disposition(source))
+
+            if action == 'preserve':
+                pass
+            elif action == 'replace':
+                copy_source()
+            elif action == 'merge':
                 data = read_source()
 
                 if len(data) > 0:
                     ch = data[-1]
-                    if ch != b'\r' and ch != b'\n':
+                    if ch != b'\n':
                         data = data + b'\n'
 
                 target_path.write_bytes(data + target_path.read_bytes())
             else:
                 if read_source() != target_path.read_bytes():
                     text = str(source) if isinstance(source, Path) else source.filename
-                    raise ValueError(
-                        f'Cannot package {text}, its contents differ from a previous entry with the '
-                        'same name.'
-                    )
+                    _duplicate_paths.append(text)
         else:
             copy_source()
 
@@ -341,7 +412,7 @@ def _build_primary_jar(language_config: JavaConfiguration, task_config: PackageC
     :param resources_dir: the directory containing the current project's resources.
     :return: the dictionary of digital signatures for the jar we created.
     """
-    global _current_language_config, _current_task_config, _current_source_root
+    global _current_language_config, _current_task_config, _current_source_root, _duplicate_paths
 
     project = global_options.project()
     manifest = _create_manifest(project.version, project.description)
@@ -355,9 +426,20 @@ def _build_primary_jar(language_config: JavaConfiguration, task_config: PackageC
         try:
             _current_language_config = language_config
             _current_task_config = task_config
+            _duplicate_paths = []
 
             _copy_tree(classes_dir, target_dir)
             _copy_tree(resources_dir, target_dir)
+
+            for source, under in task_config.get_extra_content(language_config):
+                target = target_dir if under is None else target_dir / under
+
+                if source.is_dir():
+                    _copy_tree(source, target)
+                elif source.suffix == '.jar' or source.suffix == '.zip':
+                    _extract_archive(source, target)
+                else:
+                    _copy_local_file(str(source), str(target))
 
             if task_config.include_dependencies(language_config):
                 for path_set in dependencies:
@@ -365,9 +447,16 @@ def _build_primary_jar(language_config: JavaConfiguration, task_config: PackageC
                         _copy_tree(path_set.primary_path, target_dir)
                     elif path_set.primary_path.is_file():
                         _extract_archive(path_set.primary_path, target_dir)
+
+            if len(_duplicate_paths) > 0:
+                lines = '\n    '.join(_duplicate_paths)
+                raise ValueError(
+                    f'Cannot package the following files.  All are duplicated but with different content:\n    {lines}'
+                )
         finally:
             _current_language_config = None
             _current_task_config = None
+            _duplicate_paths = []
 
         return _run_packager(manifest, entry_point, jar_file, target_dir, None)
 

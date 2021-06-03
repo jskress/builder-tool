@@ -62,6 +62,17 @@ class Component(object):
         })
         self._endorse_strict_versions = False
 
+    @property
+    def version_is_string(self) -> bool:
+        """
+        A read-only property that returns whether the version thing is actually a
+        string.  In some cases, it's a dictionary, in which case this component
+        should be ignored.
+
+        :return: ``True`` if our version is a string or ``False`` if not.
+        """
+        return isinstance(self._version, str)
+
     def as_dependency(self, parent: Dependency) -> Dependency:
         """
         A function that creates a builder dependency object out of the information
@@ -203,7 +214,10 @@ class Variant(object):
 
         if 'dependencies' in content:
             for dependency in content['dependencies']:
-                result._dependencies.append(Component.from_dict(dependency))
+                component = Component.from_dict(dependency)
+
+                if component.version_is_string:
+                    result._dependencies.append(component)
 
         if 'files' in content:
             for file_info in content['files']:

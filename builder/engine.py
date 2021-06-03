@@ -27,7 +27,7 @@ class Engine(object):
         self._rc = 0
 
     def run(self):
-        if len(global_options.tasks()) is 0:
+        if len(global_options.tasks()) == 0:
             self._show_existing_tasks()
         else:
             tasks = self._get_tasks_in_execution_order()
@@ -116,7 +116,7 @@ class Engine(object):
         :return: a tuple containing the function's positional and keyword arguments.
         """
         dependency_context = self._project.get_dependencies().create_dependency_context_for(
-            task.name, module, self._project.local_locations, self._project.project_cache
+            task.name, module, self._project.configuration
         )
         dependencies_not_accepted = True
         signature = inspect.signature(task.function)

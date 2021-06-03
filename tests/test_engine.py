@@ -48,7 +48,12 @@ class TestEngine(object):
             # noinspection PyProtectedMember
             tasks = engine._get_tasks_in_execution_order()
 
-        assert tasks == [ms.get_task('compile'), ms.get_task('test'), ms.get_task('package')]
+        assert tasks == [
+            ms.get_task('compile'),
+            ms.get_task('compile-tests'),
+            ms.get_task('test'),
+            ms.get_task('package')
+        ]
 
     def test_get_tasks_in_execution_order_independent(self):
         project = Project.from_dir(Path('/path/to/project'), language='java')

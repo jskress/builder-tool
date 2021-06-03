@@ -64,7 +64,7 @@ def _get_reference_signature(signature_name: str, signatures: Optional[Dict[str,
         signature_path = function(f'{base_name}.{signature_name}')
 
         if signature_path:
-            return signature_path.read_text('utf-8').strip()
+            return signature_path.read_text('utf-8').strip().split()[0]
     elif signature_name in signatures:
         return signatures[signature_name]
 

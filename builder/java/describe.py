@@ -9,7 +9,7 @@ from typing import Sequence, List
 from builder.java.java import _add_verbose_options
 from builder.utils import checked_run, get_matching_files
 
-_name_pattern = re.compile(r'^(?:public |protected |private )?(?:final )?(class|interface) ([.$\w]+) ')
+_name_pattern = re.compile(r'^(?:public |protected |private |abstract )?(?:final )?(class|interface) ([.$\w]+) ')
 _entry_point_signature = 'public static void main(java.lang.String[]);'
 
 

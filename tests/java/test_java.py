@@ -9,7 +9,7 @@ from typing import Tuple, Callable, Sequence
 from builder.java import JavaConfiguration, PackageConfiguration, get_javac_version
 # noinspection PyProtectedMember
 from builder.java.java import _add_verbose_options, add_class_path, build_names
-from builder.models import Dependency, DependencyPathSet
+from builder.models import Dependency, DependencyPathSet, RemoteResolver
 from builder.project import Project
 from tests.test_support import Options, FakeProcess, FakeProcessContext
 
@@ -225,6 +225,9 @@ class TestBuildNames(object):
             'scope': 'scope'
         })
 
-        assert build_names(dependency) == (
-            'https://repo1.maven.org/maven2/dep/dep/4.5.6', Path('dep'), 'dep-4.5.6', 'dep-4.5.6'
-        )
+        resolver, classified, base_name = build_names(dependency)
+
+        assert resolver._directory_url == 'https://repo1.maven.org/maven2/dep/dep/4.5.6'
+        assert resolver._directory_path == Path('dep')
+        assert classified == 'dep-4.5.6'
+        assert base_name == 'dep-4.5.6'

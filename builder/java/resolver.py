@@ -133,9 +133,9 @@ def resolve(context: DependencyContext, dependency: Dependency) -> Optional[Depe
     :param dependency: the dependency we are to resolve.
     :return: the appropriate dependency path set or ``None``.
     """
-    directory_url, directory_path, classified_name, base_name = build_names(dependency)
+    remote_resolver, classified_name, base_name = build_names(dependency)
 
-    context.set_remote_info(directory_url, directory_path)
+    context.set_remote_resolver(remote_resolver)
 
     module_path = context.to_local_path(dependency, f'{base_name}.module')
 

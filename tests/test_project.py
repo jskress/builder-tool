@@ -38,21 +38,75 @@ class TestProjectSchema(object):
                 'dependencies': {
                     'type': 'object',
                     'additionalProperties': {
+                        'oneOf': [{
+                            'type': 'object',
+                            'properties': {
+                                'location': {'type': 'string', 'enum': ['remote', 'local', 'project']},
+                                'group': {'type': 'string', 'minLength': 1},
+                                'name': {'type': 'string', 'minLength': 1},
+                                'classifier': {'type': 'string', 'minLength': 1},
+                                'ignore_transients': {'type': 'boolean'},
+                                'version': {'type': 'string', 'format': 'semver'},
+                                'scope': {
+                                    'oneOf': [
+                                        {'type': 'string', 'minLength': 1},
+                                        {'type': 'array', 'items': {'type': 'string', 'minLength': 1}}
+                                    ]
+                                }
+                            },
+                            'required': ['location', 'version', 'scope'],
+                            'additionalProperties': False
+                        }, {
+                            'type': 'object',
+                            'properties': {
+                                'spec': {'type': 'string', 'minLength': 1},
+                                'classifier': {'type': 'string', 'minLength': 1},
+                                'ignore_transients': {'type': 'boolean'},
+                                'scope': {
+                                    'oneOf': [
+                                        {'type': 'string', 'minLength': 1},
+                                        {'type': 'array', 'items': {'type': 'string', 'minLength': 1}}
+                                    ]
+                                }
+                            },
+                            'required': ['spec', 'scope'],
+                            'additionalProperties': False
+                        }]
+                    }
+                },
+                'conflicts': {
+                    'type': 'object',
+                    'additionalProperties': {
                         'type': 'object',
                         'properties': {
-                            'location': {'type': 'string', 'enum': ['remote', 'local', 'project']},
-                            'group': {'type': 'string', 'minLength': 1},
-                            'name': {'type': 'string', 'minLength': 1},
-                            'version': {'type': 'string', 'format': 'semver'},
-                            'scope': {
-                                'oneOf': [
-                                    {'type': 'string', 'minLength': 1},
-                                    {'type': 'array', 'items': {'type': 'string', 'minLength': 1}}
-                                ]
+                            'action': {
+                                'type': 'string',
+                                'enum': ['error', 'newer', 'older'],
+                                'default': 'error'
+                            },
+                            'warn': {
+                                'type': 'boolean',
+                                'default': False
                             }
-                        },
-                        'required': ['location', 'version', 'scope'],
-                        'additionalProperties': False
+                        }
+                    }
+                },
+                'conditions': {
+                    'type': 'object',
+                    'properties': {
+                        'files': {
+                            'type': 'object',
+                            'additionalProperties': {
+                                'type': 'object',
+                                'properties': {
+                                    'signature': {
+                                        'type': 'string',
+                                        'enum': ['ignore', 'warn', 'error'],
+                                        'default': 'error'
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
                 'vars': {
@@ -410,7 +464,7 @@ class TestVariableSubstitution(object):
         }
 
         with Options(variables=variables):
-            _resolve_vars_in_dict(data)
+            _resolve_vars_in_dict(data, {})
 
         assert data == {'name': '1'}
 
@@ -421,7 +475,7 @@ class TestVariableSubstitution(object):
         }
 
         with Options(variables=variables):
-            _resolve_vars_in_list(data)
+            _resolve_vars_in_list(data, {})
 
         assert data == ['name', '1']
 
@@ -439,7 +493,7 @@ class TestVariableSubstitution(object):
         }
 
         with Options(variables=variables):
-            _resolve_vars_in_dict(data)
+            _resolve_vars_in_dict(data, {})
 
         assert data == {
             'name': '1',

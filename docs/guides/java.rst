@@ -12,7 +12,7 @@ Project Directory Structure
 
 The default directory structure for a Java project is simple and looks like this:
 
-.. code-block:: bash
+.. code-block:: console
 
    ├── project.yaml
    └── src
@@ -23,7 +23,7 @@ The default directory structure for a Java project is simple and looks like this
 
 The appropriate contents of each directory should be pretty self-explanatory.
 The ``build`` and ``dist`` directories (with appropriate sub-directories) will
-also be created during compiles and packaging operations and may be cleaned up
+also be created during compile and packaging operations and may be cleaned up
 with the ``clean`` task.
 
 All these directory names are configurable by adding a ``java`` top-level
@@ -65,6 +65,14 @@ The Java language support makes the following tasks available:
         The top-level Java package to use.  This will produce the appropriate directory
         structure.
 
+    You could set up a brand new project by creating a directory and running this command:
+
+    .. code-block:: console
+
+       builder -l java -s "title=My New Project" -s version=1.0.0 -s package=com.me.project init
+
+    from within it.
+
 ``clean``
     Removes the build and distribution directories, if they exist.  It is not an error
     if they don't.
@@ -86,7 +94,7 @@ The Java language support makes the following tasks available:
 
 ``doc``
     Runs ``javadoc`` against all the sources in the project's source code directory.  You
-    should include ``doc`` as a dependency scope on any dependency also used for compliation.
+    should include ``doc`` as a dependency scope on any dependency also used for compilation.
 
 ``package``
     Builds a jar file of the compiled classes in the project's code target and source
@@ -237,6 +245,17 @@ The ``package`` task configuration may contain these fields:
     be included in the archive being built.  This will default to ``true`` for
     application projects and ``false`` for library projects.
 
+``include``
+    An array of rules of extra things to include in the primary jar the task creates.
+    Each entry in the array is an object that **must** have a field called ``source``
+    which is the directory containing the extra contents to include.  If it is relative,
+    it is resolved relative to the project root directory.  The object *may* have a
+    field called ``under``.  If this is given, it is taken as the directory within the
+    jar being built under which the extra content is included.  If ``under`` is not
+    specified, the extra content is included at the root of the jar.  Note that the
+    ``source`` directory is itself not included in the jar; only its children and all
+    descendants.
+
 ``exclude``
     A list of strings that note file patterns to exclude from the archive being created.
     Each entry will be interpreted as a file name glob pattern unless the first character
@@ -244,14 +263,40 @@ The ``package`` task configuration may contain these fields:
     expression pattern.  Any relative files that match an exclusion pattern are not
     included in the final archive.
 
-``merge``
-    A list of strings that note file patterns that should be merged when duplicates are
-    found.  Java services files are an example but don't include that pattern as it is
-    added automatically.  Each entry will be interpreted as a file name glob pattern
-    unless the first character is the tilde (``~``).  In that case, the rest of the
-    string is taken to be a regular expression pattern.  Any relative files that match
-    a merge pattern and are found more than once are combined into a single file for
-    the archive.
+``duplicates``
+    An object where each field is an entry in the target jar file that may be
+    duplicated as they are pulled from different sources (such as dependencies).  Each
+    entry name must map to the action that the builder tool should take regarding the
+    duplicate.  The action must be one of the following:
+
+    ``merge``
+        This tells the packager to merge the duplicate files.  This is appropriate for
+        things like Java service files (these are handled automatically so you don't
+        have to provide actions for them here).
+
+    ``first``
+        This tells the packager to keep the first occurrence of the file it runs across
+        and ignore any later ones.
+
+    ``last``
+        This tells the packager to keep the last occurrence of the file it runs across
+        and ignore all the earlier ones.
+
+    ``newest``
+        This tells the packager to keep the newest file (by modification time) it runs
+        across and ignore all the others.
+
+    ``oldest``
+        This tells the packager to keep the oldest file (by modification time) it runs
+        across and ignore all the others.
+
+    ``largest``
+        This tells the packager to keep the largest (in bytes) file it runs across and
+        ignore all the others.
+
+    ``smallest``
+        This tells the packager to keep the smallest (in bytes) file it runs across and
+        ignore all the others.
 
 ``sources``
     A flag that indicates whether a jar file of the project sources should be created

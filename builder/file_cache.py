@@ -118,7 +118,7 @@ class FileCache(object):
         # it is.
         response = requests.head(url, allow_redirects=True)
         if 400 <= response.status_code < 500:
-            verbose_out(f'Could not download {url}: {response.status_code} {response.reason}')
+            verbose_out(f'Could not download {url}: {response.status_code} {response.reason}', level=1)
             return None, False
         response.raise_for_status()
         return int(response.headers['Content-Length']) if 'Content-Length' in response.headers else None, True

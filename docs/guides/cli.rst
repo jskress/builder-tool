@@ -21,12 +21,16 @@ this:
    No tasks specified.  Available tasks are:
 
        java
-           clean   -- Removes build artifacts from other Java tasks.
-           compile -- Compiles Java source code for the project.
-           test    -- Tests the compiled Java code for the project.
-           doc     -- Produces javadoc documentation from the Java source in the project.
-           package -- Packages artifacts for the project.
-           build   -- Build everything in the project.
+           init           -- Initializes things for a new project, including IntelliJ files.
+           clean          -- Removes build artifacts from other Java tasks.
+           compile        -- Compiles Java source code for the project.
+           compile-tests  -- Compiles any unit tests for the project.
+           test           -- Executes any unit tests for the project.
+           doc            -- Produces javadoc documentation from the Java source in the project.
+           package        -- Packages artifacts for the project.
+           build          -- Build everything in the project.
+           check-versions -- Verifies the version of each dependency in the project.
+           sync-ij        -- Updates IntelliJ project files to match dependencies in project.yaml.
 
 The builder tool comes with complete online help by doing:
 
@@ -43,9 +47,8 @@ a few of them that require a bit more information.
     Specifying this will act as if the value given were included in the ``languages``
     field of the project file's ``info`` object.  This allows the use of language
     tasks on an ad-hoc basis, without requiring its physical reference in the
-    ``project.yaml`` file.  This is most useful for things like synchronizing
-    dependency information from the ``project.yaml`` file to an IDE, checking what the
-    version of a dependency is in a remote repository and other such one-off tasks.
+    ``project.yaml`` file.  This is most useful for things like initializing a brand
+    new project in an empty directory or other such one-off tasks.
 
 ``--verbose``
     Specifying this option enables more verbose output, both from the builder tool

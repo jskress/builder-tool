@@ -5,10 +5,10 @@ import fnmatch
 import os
 import re
 from pathlib import Path
-from typing import Optional, List, Tuple, Union
+from typing import Optional, List, Tuple, Union, Dict
 from zipfile import ZipInfo
 
-from builder.models import DependencyPathSet, Dependency
+from builder.models import DependencyPathSet, Dependency, RemoteResolver
 from builder.utils import checked_run, global_options, remove_directory
 
 
@@ -40,6 +40,15 @@ class JavaConfiguration(object):
         self._dist_dir = None
         self._lib_dir = None
         self._app_dir = None
+
+    @property
+    def project(self):
+        """
+        A read-only property that returns the project we were constructed with.
+
+        :return: our owning project.
+        """
+        return self._project
 
     def code_dir(self, required: bool = False, ensure: bool = False) -> Path:
         """
@@ -260,7 +269,7 @@ class TestingConfiguration(object):
         :return: the path to where test execution report files will be written.
         """
         if not self._test_reports_dir and self.test_reports:
-            self._test_reports_dir = config._project.project_dir(
+            self._test_reports_dir = config.project.project_dir(
                 Path(config.build) / Path(self.test_reports), required, ensure
             )
         return self._test_reports_dir
@@ -279,7 +288,7 @@ class TestingConfiguration(object):
         :return: the path to where coverage files and reports will be written.
         """
         if not self._coverage_reports_dir and self.coverage_reports:
-            self._coverage_reports_dir = config._project.project_dir(
+            self._coverage_reports_dir = config.project.project_dir(
                 Path(config.build) / Path(self.coverage_reports), required, ensure
             )
         return self._coverage_reports_dir
@@ -289,13 +298,14 @@ class PackageConfiguration(object):
     def __init__(self):
         self.entry_point = None
         self.fat_jar = None
+        self.include: List[Dict[str, str]] = []
         self.exclude: List[str] = []
-        self.merge: List[str] = []
+        self.duplicates: Dict[str, str] = {}
         self.sources = None
         self.doc = None
 
-        self._exclusions: List[re.Pattern] = []
-        self._merges: List[re.Pattern] = []
+        self._extra_content: List[Tuple[Path, Optional[Path]]] = []
+        self._path_dispositions: List[Tuple[re.Pattern, str]] = []
 
     def get_entry_point(self) -> Optional[str]:
         """
@@ -307,17 +317,80 @@ class PackageConfiguration(object):
         """
         return self.entry_point
 
-    def include_dependencies(self, language_config: JavaConfiguration) -> bool:
+    def include_dependencies(self, config: JavaConfiguration) -> bool:
         """
         A function that returns whether the packaging task should package up all
         the dependencies into the primary jar file.  If this is not configured
         in the project file, this will return ``True`` for application projects
         and ``False`` for library projects.
 
+        :param config: the language level configuration.
         :return: whether project sources should be packaged in their own jar along
         side the compiled code jar during the packaging task.
         """
-        return language_config.type == 'application' if self.fat_jar is None else self.fat_jar
+        return config.type == 'application' if self.fat_jar is None else self.fat_jar
+
+    def get_extra_content(self, config: JavaConfiguration) -> List[Tuple[Path, Optional[Path]]]:
+        """
+        A function that returns any declared extra content that should be included in
+        the packaged jar file.  Each tuple in the list returned will have two elements.
+        The first element may be a directory or file.  If it is a directory, then that
+        directory's content will be included in the jar file being built.  If it is a
+        jar or zip file, it's contents will be included in the jar file being built.
+        Any other file will be included as-is.  The second element is an optional
+        relative path the resulting jar entries should be relative to.  If this is
+        ``None`` then each element will be relative to the root in the jar file.
+
+        :param config: the language level configuration.
+        :return: a list of tuples representing extra content to include.
+        """
+        if len(self._extra_content) == 0:
+            # If this is our first time, then create all our extra content path tuples.
+            for include in self.include:
+                source = config.project.project_dir(include['source'])
+                under = None
+
+                if 'under' in include:
+                    under = Path(include['under'])
+
+                self._extra_content.append((source, under))
+
+        return self._extra_content
+
+    def _build_path_dispositions(self):
+        """
+        A helper function for converting our raw file disposition related configuration
+        information into the patterns and actions we will act upon.
+        """
+        manifest_files = '|'.join(['license.txt', 'license', 'notice'])
+
+        self._add_path_dispositions(r'~(?i:meta-inf/manifest.mf)\Z', 'exclude')
+
+        for text in self.exclude:
+            self._add_path_dispositions(text, 'exclude')
+
+        self._add_path_dispositions(r'~(?i:meta-inf/(?:' + manifest_files + r'))\Z', 'merge')
+        self._add_path_dispositions(
+            r'~(?i:meta-inf)/services/[a-zA-Z_$][a-zA-Z\d_$]*(?:\.[a-zA-Z_$][a-zA-Z\d_$]*)*\Z', 'merge'
+        )
+
+        for text, action in self.duplicates.items():
+            self._add_path_dispositions(text, action)
+
+    def _add_path_dispositions(self, text: str, action: str):
+        """
+        A helper method for converting and storing a file pattern along with the
+        action to take when a path matches it.
+
+        :param text: the string pattern to convert.
+        :param action: the action to take on matching paths.
+        """
+        if text[0] == '~':
+            pattern = re.compile(text[1:])
+        else:
+            pattern = re.compile(fnmatch.translate(text))
+
+        self._path_dispositions.append((pattern, action))
 
     def should_include(self, relative_path: Union[Path, ZipInfo]) -> bool:
         """
@@ -328,66 +401,34 @@ class PackageConfiguration(object):
         :return: ``True`` if the path/entry should be included in the archive being
         built or ``False`` if not.
         """
-        if len(self._exclusions) == 0:
+        if len(self._path_dispositions) == 0:
             # If this is our first time, then create all our regular expressions.
-            self._build_regex_list(self.exclude, self._exclusions, [r'(?i:meta-inf/manifest.mf)\Z'])
+            self._build_path_dispositions()
 
-        return not self._is_matched(relative_path, self._exclusions)
+        return self.get_path_disposition(relative_path) != 'exclude'
 
-    def can_merge(self, relative_path: Union[Path, ZipInfo]) -> bool:
+    def get_path_disposition(self, relative_path: Union[Path, ZipInfo]) -> Optional[str]:
         """
-        A function that determines whether or not a relative path is of a merge-able
-        type.  In the case where a file is encountered more than once while building
-        a jar, it's possible that the instances of the file should be merged to
-        create the final one to be packaged.  Java service files are an example
-        (handled automatically).
+        A function that determines the action that should be taken for a relative path.
+        The action returned will be one of ``exclude``, ``merge``, ``first``, ``last``,
+        ``newest``, ``oldest``, ``largest``, ``smallest`` or ``None``.  With the exception
+        of ``exclude`` all actions apply in the case where a file is encountered more than
+        once while building a jar.
 
         :param relative_path: the relative ``Path`` or a ``ZipInfo``.
-        :return: ``True`` if the path/entry is merge-able  or ``False`` if not.
+        :return: the disposition for the path or ``None``.
         """
-        if len(self._merges) == 0:
+        if len(self._path_dispositions) == 0:
             # If this is our first time, then create all our regular expressions.
-            self._build_regex_list(
-                self.merge, self._merges,
-                [r'(?i:meta-inf)/services/[a-zA-Z_$][a-zA-Z\d_$]*(?:\.[a-zA-Z_$][a-zA-Z\d_$]*)*\Z']
-            )
+            self._build_path_dispositions()
 
-        return self._is_matched(relative_path, self._merges)
-
-    @staticmethod
-    def _build_regex_list(patterns: List[str], regexes: List[re.Pattern], canned: List[str]):
-        """
-        A helper method for converting a list of strings into a list of compiled
-        regular expressions.  Each string is treated as a straight regular expression
-        if its first character is the tilde (``~``).  Otherwise, it is assumed to be
-        a file name glob pattern and converted to a regex using ``fnmatch.translate()``.
-
-        :param patterns: the list of strings to convert.
-        :param regexes: the list to populate.
-        :param canned: any default regexes to include.
-        """
-        for pattern in canned:
-            regexes.append(re.compile(pattern))
-
-        for pattern in patterns:
-            if pattern[0] == '~':
-                regexes.append(re.compile(pattern[1:]))
-            else:
-                regexes.append(re.compile(fnmatch.translate(pattern)))
-
-    @staticmethod
-    def _is_matched(relative_path: Union[Path, ZipInfo], regexes: List[re.Pattern]) -> bool:
-        """
-        A helper function that loops through the given list of regular expressions
-        and returns whether or not the given path or entry matches any of them.
-
-        :param relative_path: the relative ``Path`` or a ``ZipInfo`` to try to match.
-        :return: ``True`` if the path/entry matches at least one of the regexes or
-        ``False`` if not.
-        """
         text = str(relative_path) if isinstance(relative_path, Path) else relative_path.filename
 
-        return any((regex.match(text) for regex in regexes))
+        for pattern, action in self._path_dispositions:
+            if pattern.match(text):
+                return action
+
+        return None
 
     def package_sources(self, language_config: JavaConfiguration) -> bool:
         """
@@ -477,28 +518,45 @@ def add_class_path(options: List[str], path_sets: List[DependencyPathSet], paths
         options.append(os.pathsep.join(path_strings))
 
 
-def build_names(dependency: Dependency, version_in_url: bool = True) -> Tuple[str, Path, str, str]:
+def create_remote_resolver(group: Optional[str], name: str, version: Optional[str] = None) -> RemoteResolver:
+    """
+    A function that creates a remote resolver based on the given information.
+
+    :param group: the group name to use.  If this is ``None``, then ``name`` will be used.
+    :param name: the name to use.
+    :param version: the version to use.
+    :return: an appropriately configured remote resolver.
+    """
+    group = group if group else name
+    group = group.replace('.', '/')
+    directory_url = f'https://repo1.maven.org/maven2/{group}/{name}'
+
+    if version:
+        directory_url = f'{directory_url}/{version}'
+
+    return RemoteResolver(directory_url, Path(name))
+
+
+def build_names(dependency: Dependency, version_in_url: bool = True) -> Tuple[RemoteResolver, str, str]:
     """
     A function to build directory and file names based on the given dependency..
 
     :param dependency: the dependency to create the file container for.
     :param version_in_url: a flag noting whether the dependency version should be included
     in the URL we build.
-    :return: a tuple containing an appropriate URL, relative path, a classified base file name
+    :return: a tuple containing an appropriate remote resolver, a classified base file name
     and a base file name.
     """
-    group = dependency.group.replace('.', '/')
+    resolver = create_remote_resolver(
+        dependency.group, dependency.name, dependency.version if version_in_url else None
+    )
     name = dependency.name
     version = dependency.version
-    directory_url = f'https://repo1.maven.org/maven2/{group}/{name}'
     classifier = dependency.classifier
     base_name = f'{name}-{version}'
     classified_name = f'{base_name}-{classifier}' if classifier else base_name
 
-    if version_in_url:
-        directory_url = f'{directory_url}/{version}'
-
-    return directory_url, Path(name), classified_name, base_name
+    return resolver, classified_name, base_name
 
 
 java_version, java_version_number = get_javac_version()

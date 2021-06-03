@@ -17,7 +17,7 @@ from builder.data_helper import find_value, is_array, is_boolean, is_number, is_
 from builder.schema import Schema
 
 hostname_pattern = re.compile(r"(?!-)[A-Z\d-]{1,63}(?<!-)$", re.IGNORECASE)
-semver_pattern = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
+semver_pattern = re.compile(r"^\d+(\.\d+(?:\.\d+)?)?$")
 
 
 def _not_none_count(sequence: Iterable) -> int:
@@ -27,7 +27,7 @@ def _not_none_count(sequence: Iterable) -> int:
     :param sequence: the sequence to look through.
     :return: the number of values in the sequence that are not `None`.
     """
-    return sum(1 for _ in filter(None.__ne__, sequence))
+    return sum(1 for _ in filter(lambda item: item is not None, sequence))
 
 
 def _validate_as_date(text: str) -> bool:
@@ -295,7 +295,7 @@ class SchemaValidator(object):
 
     # noinspection PyMethodMayBeStatic,PyUnusedLocal
     def _validate_enum(self, value, schema, constraint, path):
-        if value in constraint or (value is None and 'null' in constraint) or (value is 'null' and None in constraint):
+        if value in constraint or (value is None and 'null' in constraint) or (value == 'null' and None in constraint):
             return None
         return f'it is not one of [{", ".join(map(str, constraint))}].'
 
@@ -473,7 +473,7 @@ class SchemaValidator(object):
                 if required not in value:
                     return f'it is missing the {required} property.'
 
-    def _validate_property_names(self, value, schema, constraint, path):
+    def _validate_property_names(self, value, _, constraint, path):
         if is_object(value) and is_object(constraint):
             for name in value.keys():
                 name = str(name)
@@ -549,7 +549,7 @@ class SchemaValidator(object):
                 if error is not None:
                     return error
 
-    def _validate_contains(self, value, schema, constraint, path):
+    def _validate_contains(self, value, _, constraint, path):
         if is_array(value) and is_object(constraint):
             for index, item in enumerate(value):
                 error = self._validate(item, constraint, f'{path}[{index}]')

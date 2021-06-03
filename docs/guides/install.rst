@@ -18,7 +18,7 @@ To install Builder from PyPi, simply run this command in your terminal of choice
 
     $ pip install builder-tool
 
-You will need at least Python v3.7 to use the ``builder`` tool.
+You will need at least Python v3.9 to use the ``builder`` tool.
 
 Get the Source Code
 -------------------
@@ -34,9 +34,9 @@ You can clone the public repository with this::
 Once you have a copy of the source, you can install it into your site-packages easily::
 
     $ cd builder-tool
-    $ python setup.py install
+    $ python3 setup.py install
 
 or just::
 
     $ cd builder-tool
-    $ pip install .
+    $ pip3 install .

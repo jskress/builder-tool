@@ -395,14 +395,16 @@ def out(text: str = '', respect_quiet: bool = True, **kwargs):
         _echo(text, **kwargs)
 
 
-def verbose_out(text, **kwargs):
+def verbose_out(text, level: int = 0, **kwargs):
     """
     This function is a thin wrapper around ``click.secho`` and will only output the given
     information if the user says it's ok via the verbose attribute of the global options.
 
     :param text: the text to print out.
+    :param level: the level that the current verbose count must be larger than for output
+    to occur.
     """
-    if global_options.verbose() > 0:
+    if global_options.verbose() > level:
         if 'fg' not in kwargs:
             kwargs['fg'] = 'green'
         _echo(text, **kwargs)
@@ -424,7 +426,7 @@ def labeled_out(text, label: Optional[str] = None, respect_quiet: bool = True, *
     out(text, respect_quiet, **kwargs)
 
 
-def warn(text, label: Optional[str] = 'Warning'):
+def warn(text, label: Optional[str] = 'Warning', respect_quiet: bool = False):
     """
     This function is a thin wrapper around ``labeled_out`` and will only output the given
     information if the user says it's ok.  If a label is not provided, it defaults to
@@ -433,8 +435,9 @@ def warn(text, label: Optional[str] = 'Warning'):
 
     :param text: the text to print out.
     :param label: the label, if any, to prepend to the text.
+    :param respect_quiet: a flag noting whether the ``quiet`` setting should be respected.
     """
-    labeled_out(text, label, respect_quiet=False, fg='yellow')
+    labeled_out(text, label, respect_quiet=respect_quiet, fg='yellow')
 
 
 def end(*args, label: str = 'ERROR', rc=1):

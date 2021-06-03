@@ -47,8 +47,19 @@ _package_configuration_schema = ObjectSchema()\
     .properties(
         entry_point=StringSchema().min_length(1),
         fat_jar=BooleanSchema(),
+        include=ArraySchema().items(ObjectSchema()
+            .properties(
+                source=StringSchema().min_length(1),
+                under=StringSchema().min_length(1)
+            )
+            .required('source')
+            .additional_properties(False)
+        ),
         exclude=ArraySchema().items(StringSchema().min_length(1)),
-        merge=ArraySchema().items(StringSchema().min_length(1)),
+        duplicates=ObjectSchema()
+            .additional_properties(StringSchema().enum(
+                'merge', 'first', 'last', 'newest', 'oldest', 'largest', 'smallest'
+            )),
         sources=BooleanSchema(),
         doc=BooleanSchema()
     )\

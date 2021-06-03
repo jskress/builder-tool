@@ -26,7 +26,7 @@ setup(
     install_requires=[
         'click', 'requests', 'PyYAML', 'stringcase'
     ],
-    python_requires='>=3.8.0',
+    python_requires='>=3.9.0',
     entry_points='''
         [console_scripts]
         builder=builder.main:cli

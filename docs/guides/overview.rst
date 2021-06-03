@@ -52,6 +52,16 @@ means for taking a language configuration (from a project file) and resolving th
 to a path that may contain dependency files.  This is used to resolve project based
 dependencies.
 
+One issue that can arise, especially with transient dependencies is when two different
+top-level dependencies require the same library (transient dependency) but at different
+versions.  The builder tool makes only one assumption about how such conflicts should
+be resolved.  It is assumed that dependency versioning follows the de-fecto "semver"
+standard.  Based on that, if the difference in required versions is only at the "micro"
+level, it will keep the newer one (the one with the higher "micro" number) and present
+a warning to the user.  If the difference is at the major or minor level, then an error
+will be presented and processing will stop.  The tool allows you to provide configuration
+information that may be used to change these rules on a per-dependency basis.
+
 Projects
 --------
 

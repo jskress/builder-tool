@@ -49,7 +49,7 @@ class TestSVHelperFunctions(object):
     def test_validate_as_semver(self):
         assert _validate_as_semver('1.2') is True
         assert _validate_as_semver('1.2.3') is True
-        assert _validate_as_semver('1') is False
+        assert _validate_as_semver('a') is False
         assert _validate_as_semver('1.') is False
         assert _validate_as_semver('1.2.') is False
         assert _validate_as_semver('1.2.3.') is False

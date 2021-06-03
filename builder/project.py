@@ -6,7 +6,8 @@ from typing import Sequence, Optional, Dict, Union, Any, MutableMapping, Mapping
 
 import yaml
 
-from builder.models import DependencySet, DependencyContext, dependency_schema
+from builder.models import DependencySet, DependencyContext
+from builder.config import dependency_schema, conflict_schema, ConflictSet, Configuration, file_condition_schema
 from builder.schema import ArraySchema, ObjectSchema, OneOfSchema, StringSchema
 from builder.schema_validator import SchemaValidator
 from builder.task_module import get_language_module, ModuleSet
@@ -27,6 +28,13 @@ _schema = ObjectSchema() \
             .additional_properties(False),
         dependencies=ObjectSchema()
             .additional_properties(dependency_schema),
+        conflicts=ObjectSchema()
+            .additional_properties(conflict_schema),
+        conditions=ObjectSchema()
+            .properties(
+                files=ObjectSchema()
+                    .additional_properties(file_condition_schema)
+            ),
         vars=ObjectSchema().additional_properties(StringSchema().min_length(1)),
         locations=ObjectSchema()
             .properties(
@@ -103,16 +111,18 @@ class Project(object):
             self._info['version'] = '0.0.1'
         _fix_up_language_list(self._info)
         self._prefetch_module_set()
-        self._local_paths = self._translate_to_paths('local')
-        self._project_cache = ProjectCache(self._translate_to_paths('project'))
-        self._dependencies = DependencySet(content['dependencies'] if 'dependencies' in content else {})
-        self._config_cache = {}
 
         if 'vars' not in self._content:
             self._content['vars'] = {}
 
-        # Finally, resolve any variable references.
-        _resolve_vars_in_dict(self._content)
+        _resolve_vars_in_dict(self._content, self._content['vars'])
+
+        self._configuration = Configuration(
+            content, self._translate_to_paths('local'), ProjectCache(self._translate_to_paths('project'))
+        )
+        self._dependencies = DependencySet(content['dependencies'] if 'dependencies' in content else {})
+        self._config_cache = {}
+        self._conflict_set = ConflictSet(content['conflicts'] if 'conflicts' in content else {})
 
     def _prefetch_module_set(self):
         """
@@ -184,24 +194,14 @@ class Project(object):
         return name if title is None else f'{name} -- {title}'
 
     @property
-    def local_locations(self) -> List[Path]:
+    def configuration(self) -> Configuration:
         """
-        A read-only property that returns the list of local location paths configured
-        for this project.  The list returned may be empty but will never be ``None``.
+        A read-only property that returns the overall framework-level configuration
+        for this project.
 
-        :return: the list of local location paths for the project.
+        :return: the framework-level project configuration.
         """
-        return self._local_paths
-
-    @property
-    def project_cache(self) -> 'ProjectCache':
-        """
-        A read-only property that returns a cache of projects defined as locations
-        within this project.
-
-        :return: this project's project location cache.
-        """
-        return self._project_cache
+        return self._configuration
 
     def has_no_languages(self) -> bool:
         """
@@ -262,7 +262,7 @@ class Project(object):
         :return: a context containing all our dependencies.
         """
         return self._dependencies.create_full_dependency_context(
-            self._module_set.get_language(language), self._local_paths, self._project_cache
+            self._module_set.get_language(language), self._configuration
         )
 
     def get_config(self, name: str, schema: SchemaValidator = None, config_class: Optional[object] = None) -> Any:
@@ -428,31 +428,33 @@ def _fix_up_language_list(info: Dict[str, Union[str, Sequence[str]]]):
     info['languages'] = languages
 
 
-def _resolve_vars_in_dict(data: Dict[str, Any]):
+def _resolve_vars_in_dict(data: Dict[str, Any], source: Dict[str, str]):
     """
     A function that traverses the specified dictionary, finding all string values and
     resolves any variable references that are found.  Nested dictionaries and sequences
     are processed as well.
 
     :param data: the dictionary to traverse.
+    :param source: the variables to use in substitution.
     """
     for key, value in data.items():
-        _resolve_vars_in_container(data, key, value)
+        _resolve_vars_in_container(data, key, value, source)
 
 
-def _resolve_vars_in_list(data: List):
+def _resolve_vars_in_list(data: List, source: Dict[str, str]):
     """
     A function that traverses the specified list, finding all string values and resolves
     any variable references that are found.  Nested dictionaries and sequences are
     processed as well.
 
     :param data: the list to traverse.
+    :param source: the variables to use in substitution.
     """
     for index, value in enumerate(data):
-        _resolve_vars_in_container(data, index, value)
+        _resolve_vars_in_container(data, index, value, source)
 
 
-def _resolve_vars_in_container(data: Union[MutableMapping, List], index: Any, value: Any):
+def _resolve_vars_in_container(data: Union[MutableMapping, List], index: Any, value: Any, source: Dict[str, str]):
     """
     A function that processes the given value.  If it is a tuple, it is converted to a
     list.  If it is a list or dictionary, then it is processed as a container.  If it
@@ -461,15 +463,16 @@ def _resolve_vars_in_container(data: Union[MutableMapping, List], index: Any, va
     :param data: the container (dictionary or list) the value belongs to.
     :param index: the list index or dictionary key of the value within its container.
     :param value: the value to process.
+    :param source: the variables to use in substitution.
     """
     if isinstance(value, tuple):
         data[index] = value = list(value)
     if isinstance(value, str):
-        data[index] = global_options.substitute(value)
+        data[index] = global_options.substitute(value, extras=source)
     elif isinstance(value, Dict):
-        _resolve_vars_in_dict(value)
+        _resolve_vars_in_dict(value, source)
     elif isinstance(value, List):
-        _resolve_vars_in_list(value)
+        _resolve_vars_in_list(value, source)
 
 
 def get_project(directory: Path) -> Project:

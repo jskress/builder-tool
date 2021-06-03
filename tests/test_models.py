@@ -9,15 +9,17 @@ from unittest.mock import MagicMock, call
 # noinspection PyPackageRequirements
 import pytest
 
-from builder.models import Dependency, DependencySet, DependencyPathSet, Language, Task, DependencyContext
+from builder.config import Configuration
+from builder.models import Dependency, DependencySet, DependencyPathSet, Language, Task, DependencyContext, \
+    RemoteResolver
 from builder.signing import sign_path, supported_signatures, sign_path_to_files
 
 
-def _make_dep(location: Optional[str] = 'remote', version: Optional[str] = '1.2.3',
+def _make_dep(location: Optional[str] = 'remote', name: Optional[str] = 'name', version: Optional[str] = '1.2.3',
               scope: Optional[List[str]] = None) -> Dependency:
     content = {
         'location': location,
-        'name': 'name',
+        'name': name,
         'version': version
     }
 
@@ -199,7 +201,7 @@ class TestDependencyContext(object):
     def test_construction(self):
         deps = []
         language = Language({}, 'lang')
-        context = DependencyContext(deps, language, [], None)
+        context = DependencyContext(deps, language, Configuration({}, [], None))
 
         assert context._dependencies == deps
         assert context._dependencies is not deps
@@ -207,23 +209,23 @@ class TestDependencyContext(object):
 
     def test_remote_info(self):
         path = Path('.')
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
+        resolver = RemoteResolver('the url', path)
 
-        assert context._directory_url is None
-        assert context._directory_path is None
+        assert context._remote_resolver is None
 
-        context.set_remote_info('the url', path)
+        context.set_remote_resolver(resolver)
 
-        assert context._directory_url == 'the url'
-        assert context._directory_path is path
+        assert context._remote_resolver is resolver
 
-        context.set_remote_info('http://server/path/', path)
+        resolver = RemoteResolver('http://server/path/', path)
 
-        assert context._directory_url == 'http://server/path'
-        assert context._directory_path is path
+        context.set_remote_resolver(resolver)
+
+        assert context._remote_resolver is resolver
 
     def test_resolve_no_resolver(self):
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
 
         with pytest.raises(ValueError) as info:
             context.resolve()
@@ -232,7 +234,7 @@ class TestDependencyContext(object):
 
     def test_resolve_no_dependencies(self):
         language = Language({}, 'lang')
-        context = DependencyContext([], language, [], None)
+        context = DependencyContext([], language, Configuration({}, [], None))
 
         language.resolver = MagicMock()
 
@@ -243,7 +245,7 @@ class TestDependencyContext(object):
         path = Path('/path/to/file.txt')
         language = Language({}, 'lang')
         path_set = DependencyPathSet(dep, path)
-        context = DependencyContext([dep], language, [], None)
+        context = DependencyContext([dep], language, Configuration({}, [], None))
 
         language.resolver = MagicMock(return_value=path_set)
 
@@ -256,7 +258,7 @@ class TestDependencyContext(object):
         path = Path('/path/to/file.txt')
         language = Language({}, 'lang')
         path_set = DependencyPathSet(dep, path)
-        context = DependencyContext([dep, dep], language, [], None)
+        context = DependencyContext([dep, dep], language, Configuration({}, [], None))
 
         language.resolver = MagicMock(return_value=path_set)
 
@@ -265,16 +267,17 @@ class TestDependencyContext(object):
         language.resolver.assert_called_once_with(context, dep)
 
     def test_resolve_to_nothing(self):
-        dep = _make_dep()
+        dep = _make_dep(name='resolve-to-nothing')
         language = Language({}, 'lang')
-        context = DependencyContext([dep], language, [], None)
+        context = DependencyContext([dep], language, Configuration({}, [], None))
 
         language.resolver = MagicMock(return_value=None)
 
         with pytest.raises(ValueError) as info:
             context.resolve()
 
-        assert info.value.args[0] == 'The dependency, name:name:1.2.3, could not be resolved.'
+        assert info.value.args[0] == 'Dependency path:\nresolve-to-nothing:resolve-to-nothing:1.2.3\nThe dependency, ' \
+                                     'resolve-to-nothing:resolve-to-nothing:1.2.3, could not be resolved.'
 
         language.resolver.assert_called_once_with(context, dep)
 
@@ -284,7 +287,7 @@ class TestDependencyContext(object):
         path = Path('/path/to/file.txt')
         language = Language({}, 'lang')
         path_set = DependencyPathSet(dep1, path)
-        context = DependencyContext([dep1, dep2], language, [], None)
+        context = DependencyContext([dep1, dep2], language, Configuration({}, [], None))
 
         language.resolver = MagicMock(return_value=path_set)
 
@@ -298,7 +301,8 @@ class TestDependencyContext(object):
 
     def test_add_dependency(self):
         dep = _make_dep()
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
+        context._resolve = MagicMock()
 
         assert dep.transient is False
         assert len(context._dependencies) == 0
@@ -306,13 +310,11 @@ class TestDependencyContext(object):
         context.add_dependency(dep)
 
         assert dep.transient is True
-        assert len(context._dependencies) == 1
-        assert context._dependencies[0] is dep
 
     def test_to_local_file_no_path(self):
         mock_fetch = MagicMock(return_value=None)
         dep = _make_dep()
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
 
         context._fetch_file = mock_fetch
 
@@ -324,7 +326,7 @@ class TestDependencyContext(object):
         path = 'file.txt'
         mock_fetch = MagicMock(return_value=path)
         dep = _make_dep()
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
 
         context._fetch_file = mock_fetch
 
@@ -337,7 +339,7 @@ class TestDependencyContext(object):
         path = directory / 'file.txt'
         mock_fetch = MagicMock(return_value=path)
         dep = _make_dep()
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
         context._fetch_file = mock_fetch
 
         path.write_text("file content.\n")
@@ -345,7 +347,7 @@ class TestDependencyContext(object):
         with pytest.raises(ValueError) as info:
             context.to_local_path(dep, 'file.txt', {'sha512': 'bad-signature'})
 
-        assert info.value.args[0] == 'Could not verify the signature of the file file.txt.'
+        assert info.value.args[0] == 'Dependency path:\n\nCould not verify the signature of the file file.txt.'
         assert mock_fetch.mock_calls == [call(dep, 'file.txt')]
 
     def test_to_local_file_good_passed_signatures(self, tmpdir):
@@ -353,7 +355,7 @@ class TestDependencyContext(object):
         path = directory / 'file.txt'
         mock_fetch = MagicMock(return_value=path)
         dep = _make_dep()
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
         context._fetch_file = mock_fetch
 
         path.write_text("file content.\n")
@@ -368,7 +370,7 @@ class TestDependencyContext(object):
         path = directory / 'file.txt'
         mock_fetch = MagicMock(return_value=path)
         dep = _make_dep()
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
         context._fetch_file = mock_fetch
         file_names = ['file.txt']
         file_names.extend([f'file.txt.{sn}' for sn in supported_signatures])
@@ -378,7 +380,7 @@ class TestDependencyContext(object):
         with pytest.raises(ValueError) as info:
             context.to_local_path(dep, 'file.txt')
 
-        assert info.value.args[0] == 'Could not verify the signature of the file file.txt.'
+        assert info.value.args[0] == 'Dependency path:\n\nCould not verify the signature of the file file.txt.'
         assert mock_fetch.mock_calls == [call(dep, file_name) for file_name in file_names]
 
     def test_to_local_file_good_file_signatures(self, tmpdir):
@@ -388,7 +390,7 @@ class TestDependencyContext(object):
         file_names.extend([f'file.txt.{sn}' for sn in supported_signatures])
         mock_fetch = MagicMock(side_effect=[directory / name for name in file_names])
         dep = _make_dep()
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
         context._fetch_file = mock_fetch
         file_names = ['file.txt']
         file_names.extend([f'file.txt.{sn}' for sn in supported_signatures])
@@ -407,7 +409,7 @@ class TestDependencyContext(object):
         p1 = Path('path1')
         p2 = Path('path2')
         p3 = Path('path3')
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
 
         context._handle_remote_resolution = MagicMock(return_value=p1)
         context._handle_local_resolution = MagicMock(return_value=p2)
@@ -419,7 +421,7 @@ class TestDependencyContext(object):
 
         context._handle_remote_resolution.assert_called_once_with('remote.name')
         context._handle_local_resolution.assert_called_once_with('local.name')
-        context._handle_project_resolution.assert_called_once_with('project.name')
+        context._handle_project_resolution.assert_called_once_with('dep', 'project.name')
 
         assert r1 is p1
         assert r2 is p2
@@ -432,14 +434,16 @@ class TestDependencyContext(object):
         parent_path = Path('path/to')
         file = parent_path / name
         return_value = Path('/resolved/path/to/' + name)
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
 
-        context._resolve_remotely = MagicMock(return_value=return_value)
-        context.set_remote_info(parent_url, parent_path)
+        resolver = RemoteResolver(parent_url, parent_path)
+        resolver._resolve_remotely = MagicMock(return_value=return_value)
+
+        context.set_remote_resolver(resolver)
 
         rv = context._handle_remote_resolution(name)
 
-        context._resolve_remotely.assert_called_once_with(url, file)
+        resolver._resolve_remotely.assert_called_once_with(url, file)
 
         assert rv is return_value
 
@@ -451,16 +455,16 @@ class TestDependencyContext(object):
         existing_file = directory / good_name
         existing_file.write_text("")
 
-        context = DependencyContext([], Language({}, 'lang'), [directory], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [directory], None))
 
         assert context._handle_local_resolution(bad_name) is None
         assert context._handle_local_resolution(good_name) == existing_file
 
     def test_handle_project_resolution_missing_function(self):
-        context = DependencyContext([], Language({}, 'lang'), [], None)
+        context = DependencyContext([], Language({}, 'lang'), Configuration({}, [], None))
 
         with pytest.raises(ValueError) as info:
-            context._handle_project_resolution('name.txt')
+            context._handle_project_resolution('', 'name.txt')
 
         assert info.value.args[0] == 'The language, lang, does not provide a means of resolving project-based ' \
                                      'dependencies.'
@@ -478,27 +482,17 @@ class TestDependencyContext(object):
 
         language.project_as_dist_path = MagicMock(return_value=None)
 
-        context = DependencyContext([], language, [], mock_cache)
+        context = DependencyContext([], language, Configuration({}, [], mock_cache))
 
-        assert context._handle_project_resolution(name) is None
+        assert context._handle_project_resolution('', name) is None
 
         language.project_as_dist_path = MagicMock(return_value=directory)
 
-        assert context._handle_project_resolution(name) is None
+        assert context._handle_project_resolution('', name) is None
 
         path.write_text("")
 
-        assert context._handle_project_resolution(name) == path
-
-    def test_is_empty(self):
-        dep = _make_dep()
-        context = DependencyContext([], Language({}, 'lang'), [], None)
-
-        assert context.is_empty() is True
-
-        context.add_dependency(dep)
-
-        assert context.is_empty() is False
+        assert context._handle_project_resolution('', name) == path
 
 
 _set_test_data = {
@@ -529,11 +523,11 @@ class TestDependencySet(object):
 
     def test_create_dependency_context_for(self):
         dep_set = DependencySet(_set_test_data)
-        context = dep_set.create_dependency_context_for('bogus', Language(None, 'fake'), [], None)
+        context = dep_set.create_dependency_context_for('bogus', Language(None, 'fake'), Configuration({}, [], None))
 
         assert context.is_empty() is True
 
-        context = dep_set.create_dependency_context_for('task', Language(None, 'fake'), [], None)
+        context = dep_set.create_dependency_context_for('task', Language(None, 'fake'), Configuration({}, [], None))
 
         assert context.is_empty() is False
         assert len(context._dependencies) == 2

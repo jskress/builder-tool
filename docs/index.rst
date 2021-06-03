@@ -7,7 +7,7 @@ Release v\ |version|. (:ref:`Installation <install>`)
 
 This is a Python project that provides a tool for building software.  It is
 language agnostic and works by allowing a user to specify the build tasks which
-should be performed, as is true of most build tools.  You will need at least v3.7
+should be performed, as is true of most build tools.  You will need at least v3.9
 of Python to run it.
 
 There are two major reasons for writing this.  Build tools like ``ant`` and ``gradle``
@@ -20,7 +20,7 @@ There are plenty of build related things this tool cannot do.  If you run across
 those, I'm sure one of the others will suit you just fine.  This one is really meant
 to be standalone or to play well with something simple like ``make`` at the top level
 of your build process.  It is an attempt to have a straightforward build tool that is
-not over-engineered.  The KISS rule reigns here.
+not over-engineered.  The KISS principle reigns here.
 
 Tasks support the notion of prerequisite tasks.  For example, ``test`` type tasks
 usually require a ``compile`` type task to be performed first.  Each language is
